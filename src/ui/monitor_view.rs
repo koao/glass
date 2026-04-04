@@ -1,4 +1,5 @@
 use egui::{Align2, Color32, FontId, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2};
+use egui::epaint::TextShape;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
@@ -6,7 +7,7 @@ use crate::ui::theme;
 
 // === フォントサイズ ===
 const MAIN_FONT_SIZE: f32 = 20.0;
-const STACKED_FONT_SIZE: f32 = 11.0;
+const ROTATED_FONT_SIZE: f32 = 11.0;
 
 // === 制御コード略称 ===
 const CONTROL_CODES: [&str; 33] = [
@@ -21,7 +22,7 @@ const CONTROL_CODES: [&str; 33] = [
 fn calc_layout(ui: &Ui) -> (f32, f32, usize) {
     let char_w = MAIN_FONT_SIZE * 0.6;
     let cell_w = char_w + 6.0;
-    let cell_h = MAIN_FONT_SIZE * 2.2;
+    let cell_h = MAIN_FONT_SIZE * 1.8;
     let cols = (ui.available_width() / cell_w).floor().max(1.0) as usize;
     (cell_w, cell_h, cols)
 }
@@ -206,18 +207,21 @@ fn draw_idle_char(painter: &egui::Painter, rect: Rect, ch: char) {
     );
 }
 
+/// バイト値を "x00" 形式の文字列に変換
+fn hex_label(byte: u8) -> String {
+    format!("x{:02X}", byte)
+}
+
 /// データバイトを描画
 fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayMode) {
+    let rotated_font = FontId::monospace(ROTATED_FONT_SIZE);
+
     match mode {
         DisplayMode::Hex => {
-            // 2桁HEXを縦積み表示
-            let hi = format!("{:X}", byte >> 4);
-            let lo = format!("{:X}", byte & 0x0F);
-            draw_stacked(painter, rect, &[&hi, &lo], theme::DATA_COLOR);
+            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, theme::DATA_COLOR);
         }
         DisplayMode::Ascii => {
             if byte >= 0x21 && byte <= 0x7E {
-                // 印字可能文字 (0x21-0x7E): 通常表示
                 let font_id = FontId::monospace(MAIN_FONT_SIZE);
                 painter.text(
                     rect.center(),
@@ -227,38 +231,31 @@ fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayM
                     theme::DATA_COLOR,
                 );
             } else if byte <= 0x20 {
-                // 制御コード + スペース (0x00-0x20): 縦積み表示
                 let name = CONTROL_CODES[byte as usize];
-                draw_stacked_str(painter, rect, name, theme::CONTROL_COLOR);
+                draw_rotated(painter, rect, name, &rotated_font, theme::CONTROL_COLOR);
             } else if byte == 0x7F {
-                draw_stacked_str(painter, rect, "DEL", theme::CONTROL_COLOR);
+                draw_rotated(painter, rect, "DEL", &rotated_font, theme::CONTROL_COLOR);
             } else {
-                // ASCII範囲外 (0x80-0xFF): HEX縦積み表示
-                let hi = format!("{:X}", byte >> 4);
-                let lo = format!("{:X}", byte & 0x0F);
-                draw_stacked(painter, rect, &[&hi, &lo], theme::HIGH_BYTE_COLOR);
+                draw_rotated(painter, rect, &hex_label(byte), &rotated_font, theme::HIGH_BYTE_COLOR);
             }
         }
     }
 }
 
-/// 文字列を縦積み表示
-fn draw_stacked_str(painter: &egui::Painter, rect: Rect, text: &str, color: Color32) {
-    let chars: Vec<String> = text.chars().map(|c| c.to_string()).collect();
-    let refs: Vec<&str> = chars.iter().map(|s| s.as_str()).collect();
-    draw_stacked(painter, rect, &refs, color);
-}
+/// テキストを90°回転(反時計回り)してセル中央に描画
+fn draw_rotated(painter: &egui::Painter, rect: Rect, text: &str, font_id: &FontId, color: Color32) {
+    let galley = painter.layout_no_wrap(text.to_string(), font_id.clone(), color);
 
-/// 複数文字を縦積みで描画
-fn draw_stacked(painter: &egui::Painter, rect: Rect, lines: &[&str], color: Color32) {
-    let font_id = FontId::monospace(STACKED_FONT_SIZE);
-    let n = lines.len() as f32;
-    let line_h = STACKED_FONT_SIZE * 1.2;
-    let total_h = n * line_h;
-    let start_y = rect.center().y - total_h / 2.0 + line_h / 2.0;
+    let w = galley.rect.width();
+    let h = galley.rect.height();
 
-    for (i, line) in lines.iter().enumerate() {
-        let pos = Pos2::new(rect.center().x, start_y + i as f32 * line_h);
-        painter.text(pos, Align2::CENTER_CENTER, *line, font_id.clone(), color);
-    }
+    // 90°CCW回転後の中心をセル中央に合わせる
+    let pos = Pos2::new(
+        rect.center().x - h / 2.0,
+        rect.center().y + w / 2.0,
+    );
+
+    let mut text_shape = TextShape::new(pos, galley, color);
+    text_shape.angle = -std::f32::consts::FRAC_PI_2;
+    painter.add(text_shape);
 }

@@ -9,8 +9,8 @@ pub const GRID_BG: Color32 = Color32::from_rgb(26, 27, 38);
 pub const GRID_LINE: Color32 = Color32::from_rgb(46, 48, 68);
 
 // --- データ表示 ---
-/// データバイト: セージグリーン (対背景 ~7.5:1)
-pub const DATA_COLOR: Color32 = Color32::from_rgb(143, 188, 168);
+/// データバイト: ライトグリーン (対背景 ~7.5:1)
+pub const DATA_COLOR: Color32 = Color32::from_rgb(120, 200, 140);
 /// 制御コード: 琥珀色 (対背景 ~7.8:1)
 pub const CONTROL_COLOR: Color32 = Color32::from_rgb(212, 165, 106);
 /// 高バイト (0x80-0xFF): スチールブルー (対背景 ~7.2:1)
