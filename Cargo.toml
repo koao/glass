@@ -1,0 +1,11 @@
+[package]
+name = "glass"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossbeam-channel = "0.5.15"
+eframe = "0.34.1"
+egui = "0.34.1"
+egui_extras = { version = "0.34.1", features = ["datepicker", "image"] }
+serialport = "4.9.0"
