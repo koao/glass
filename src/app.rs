@@ -27,6 +27,23 @@ pub enum MonitorState {
     Paused,
 }
 
+/// 設定ウィンドウのタブ
+#[derive(Clone, Debug, PartialEq)]
+pub enum SettingsTab {
+    Serial,
+    Display,
+}
+
+/// UI表示状態
+pub struct UiState {
+    /// 設定ウィンドウ表示フラグ
+    pub show_settings_window: bool,
+    /// 検索バー表示フラグ
+    pub show_search_bar: bool,
+    /// 設定ウィンドウの選択タブ
+    pub settings_tab: SettingsTab,
+}
+
 /// アプリケーション本体
 pub struct GlassApp {
     pub config: SerialConfig,
@@ -43,6 +60,7 @@ pub struct GlassApp {
     worker_handle: Option<std::thread::JoinHandle<()>>,
     pub last_error: Option<String>,
     pub search: SearchState,
+    pub ui_state: UiState,
 }
 
 impl GlassApp {
@@ -84,6 +102,11 @@ impl GlassApp {
             worker_handle: None,
             last_error: None,
             search: SearchState::new(),
+            ui_state: UiState {
+                show_settings_window: settings.show_settings_window,
+                show_search_bar: settings.show_search_bar,
+                settings_tab: SettingsTab::Serial,
+            },
         };
         app.refresh_ports();
         app
@@ -224,6 +247,8 @@ impl GlassApp {
                 DisplayMode::Hex => "Hex".to_string(),
                 DisplayMode::Ascii => "Ascii".to_string(),
             },
+            show_settings_window: self.ui_state.show_settings_window,
+            show_search_bar: self.ui_state.show_search_bar,
         };
         settings.save();
     }
@@ -234,20 +259,41 @@ impl eframe::App for GlassApp {
         // チャネルからデータ受信
         self.drain_channel();
 
-        // ツールバー
-        egui::Panel::top("toolbar").show_inside(ui, |ui| {
-            ui::toolbar::draw(ui, self);
+        // キーボードショートカット
+        let (ctrl_f, escape) = ui.input(|i| {
+            (
+                i.key_pressed(egui::Key::F) && i.modifiers.ctrl,
+                i.key_pressed(egui::Key::Escape),
+            )
+        });
+        if ctrl_f {
+            self.ui_state.show_search_bar = !self.ui_state.show_search_bar;
+        }
+        if escape {
+            self.ui_state.show_search_bar = false;
+        }
+
+        // ヘッダーバー（スリム1行）
+        egui::Panel::top("header_bar").show_inside(ui, |ui| {
+            ui::header_bar::draw(ui, self);
         });
 
-        // ステータスバー
+        // ステータスバー（表示設定統合）
         egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
             ui::status_bar::draw(ui, self);
         });
 
-        // メインモニタ領域
+        // メインモニタ領域（検索バー含む）
         egui::CentralPanel::default().show_inside(ui, |ui| {
+            if self.ui_state.show_search_bar {
+                ui::search_bar::draw(ui, self);
+                ui.separator();
+            }
             ui::monitor_view::draw(ui, self);
         });
+
+        // フローティング設定ウィンドウ
+        ui::settings_window::draw(ui, self);
 
         // Running状態では継続的に再描画
         if self.state == MonitorState::Running {

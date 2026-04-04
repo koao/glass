@@ -14,6 +14,10 @@ pub struct AppSettings {
     pub stop_bits: StopBitsSetting,
     pub idle_threshold_ms: f64,
     pub display_mode: String,
+    #[serde(default)]
+    pub show_settings_window: bool,
+    #[serde(default)]
+    pub show_search_bar: bool,
 }
 
 impl Default for AppSettings {
@@ -26,6 +30,8 @@ impl Default for AppSettings {
             stop_bits: StopBitsSetting::One,
             idle_threshold_ms: 10.0,
             display_mode: "Hex".to_string(),
+            show_settings_window: false,
+            show_search_bar: false,
         }
     }
 }
