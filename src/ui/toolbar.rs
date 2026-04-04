@@ -3,6 +3,7 @@ use egui::Ui;
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::serial::config::{BAUD_RATES, DATA_BITS, ParitySetting, StopBitsSetting};
 use crate::ui::search::SearchMode;
+use crate::ui::theme;
 
 /// ツールバー描画
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
@@ -156,13 +157,13 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             if count > 0 {
                 ui.label(format!("{}/{}", app.search.current + 1, count));
             } else {
-                ui.colored_label(egui::Color32::GRAY, "一致なし");
+                ui.colored_label(theme::TEXT_MUTED, "一致なし");
             }
         }
     });
 
     // エラー表示
     if let Some(err) = &app.last_error {
-        ui.colored_label(egui::Color32::RED, err);
+        ui.colored_label(theme::STATUS_ERROR, err);
     }
 }

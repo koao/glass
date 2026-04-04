@@ -2,17 +2,7 @@ use egui::{Align2, Color32, FontId, Pos2, Rect, ScrollArea, Sense, Stroke, Strok
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
-
-// === 配色 ===
-const GRID_BG: Color32 = Color32::from_rgb(16, 16, 24);
-const GRID_LINE: Color32 = Color32::from_rgb(48, 48, 64);
-const DATA_COLOR: Color32 = Color32::from_rgb(0, 230, 0);
-const CONTROL_COLOR: Color32 = Color32::from_rgb(255, 255, 100);
-const HIGH_BYTE_COLOR: Color32 = Color32::from_rgb(140, 160, 255);
-const IDLE_BG: Color32 = Color32::from_rgb(0, 80, 80);
-const IDLE_TEXT: Color32 = Color32::from_rgb(0, 220, 220);
-const CURSOR_FILL: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 50);
-const CURSOR_STROKE: Color32 = Color32::WHITE;
+use crate::ui::theme;
 
 // === フォントサイズ ===
 const MAIN_FONT_SIZE: f32 = 20.0;
@@ -63,7 +53,7 @@ fn draw_row_lines(
         let y = rect.min.y + row as f32 * cell_h;
         painter.line_segment(
             [Pos2::new(rect.min.x, y), Pos2::new(rect.min.x + width, y)],
-            Stroke::new(1.0, GRID_LINE),
+            Stroke::new(1.0, theme::GRID_LINE),
         );
     }
 }
@@ -118,7 +108,7 @@ fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols:
     let (rect, _) = ui.allocate_exact_size(desired, Sense::hover());
     let painter = ui.painter_at(rect);
 
-    painter.rect_filled(rect, 0.0, GRID_BG);
+    painter.rect_filled(rect, 0.0, theme::GRID_BG);
     draw_row_lines(&painter, rect, cols, rows, cell_w, cell_h);
 
     let buf_len = app.display_buffer.len();
@@ -154,8 +144,8 @@ fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols:
     // カーソル（書き込み位置）
     if buf_len > 0 || app.last_byte_time.is_some() {
         let cr = cell_rect(rect, cursor_pos, cols, cell_w, cell_h);
-        painter.rect_filled(cr, 0.0, CURSOR_FILL);
-        painter.rect_stroke(cr, 0.0, Stroke::new(2.0, CURSOR_STROKE), StrokeKind::Inside);
+        painter.rect_filled(cr, 0.0, theme::CURSOR_FILL);
+        painter.rect_stroke(cr, 0.0, Stroke::new(2.0, theme::CURSOR_STROKE), StrokeKind::Inside);
     }
 }
 
@@ -164,7 +154,7 @@ fn draw_scrollable(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols: 
     let total_cells = app.display_buffer.len();
     if total_cells == 0 {
         ui.colored_label(
-            Color32::GRAY,
+            theme::TEXT_MUTED,
             "データなし — COMポートを選択して開始してください",
         );
         return;
@@ -178,7 +168,7 @@ fn draw_scrollable(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols: 
             let (rect, _) = ui.allocate_exact_size(desired, Sense::hover());
             let painter = ui.painter_at(rect);
 
-            painter.rect_filled(rect, 0.0, GRID_BG);
+            painter.rect_filled(rect, 0.0, theme::GRID_BG);
             draw_row_lines(&painter, rect, cols, total_rows, cell_w, cell_h);
 
             for (i, cell) in app.display_buffer.cells().iter().enumerate() {
@@ -205,14 +195,14 @@ fn draw_cell(painter: &egui::Painter, rect: Rect, cell: &DisplayCell, mode: &Dis
 
 /// IDLEカウンタ文字を描画（背景色で区別、縦積み表示）
 fn draw_idle_char(painter: &egui::Painter, rect: Rect, ch: char) {
-    painter.rect_filled(rect, 0.0, IDLE_BG);
+    painter.rect_filled(rect, 0.0, theme::IDLE_BG);
     let font_id = FontId::monospace(MAIN_FONT_SIZE);
     painter.text(
         rect.center(),
         Align2::CENTER_CENTER,
         ch.to_string(),
         font_id,
-        IDLE_TEXT,
+        theme::IDLE_TEXT,
     );
 }
 
@@ -223,7 +213,7 @@ fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayM
             // 2桁HEXを縦積み表示
             let hi = format!("{:X}", byte >> 4);
             let lo = format!("{:X}", byte & 0x0F);
-            draw_stacked(painter, rect, &[&hi, &lo], DATA_COLOR);
+            draw_stacked(painter, rect, &[&hi, &lo], theme::DATA_COLOR);
         }
         DisplayMode::Ascii => {
             if byte >= 0x21 && byte <= 0x7E {
@@ -234,19 +224,19 @@ fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayM
                     Align2::CENTER_CENTER,
                     String::from(byte as char),
                     font_id,
-                    DATA_COLOR,
+                    theme::DATA_COLOR,
                 );
             } else if byte <= 0x20 {
                 // 制御コード + スペース (0x00-0x20): 縦積み表示
                 let name = CONTROL_CODES[byte as usize];
-                draw_stacked_str(painter, rect, name, CONTROL_COLOR);
+                draw_stacked_str(painter, rect, name, theme::CONTROL_COLOR);
             } else if byte == 0x7F {
-                draw_stacked_str(painter, rect, "DEL", CONTROL_COLOR);
+                draw_stacked_str(painter, rect, "DEL", theme::CONTROL_COLOR);
             } else {
                 // ASCII範囲外 (0x80-0xFF): HEX縦積み表示
                 let hi = format!("{:X}", byte >> 4);
                 let lo = format!("{:X}", byte & 0x0F);
-                draw_stacked(painter, rect, &[&hi, &lo], HIGH_BYTE_COLOR);
+                draw_stacked(painter, rect, &[&hi, &lo], theme::HIGH_BYTE_COLOR);
             }
         }
     }

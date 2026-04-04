@@ -1,14 +1,15 @@
-use egui::{Color32, Ui};
+use egui::Ui;
 
 use crate::app::{GlassApp, MonitorState};
+use crate::ui::theme;
 
 /// ステータスバー描画
 pub fn draw(ui: &mut Ui, app: &GlassApp) {
     ui.horizontal(|ui| {
         let (status_text, status_color) = match app.state {
-            MonitorState::Stopped => ("停止", Color32::GRAY),
-            MonitorState::Running => ("受信中", Color32::GREEN),
-            MonitorState::Paused => ("一時停止", Color32::YELLOW),
+            MonitorState::Stopped => ("停止", theme::STATUS_STOPPED),
+            MonitorState::Running => ("受信中", theme::STATUS_RUNNING),
+            MonitorState::Paused => ("一時停止", theme::STATUS_PAUSED),
         };
         ui.colored_label(status_color, status_text);
         ui.separator();
@@ -17,7 +18,7 @@ pub fn draw(ui: &mut Ui, app: &GlassApp) {
 
         let error_count = app.buffer.error_count();
         if error_count > 0 {
-            ui.colored_label(Color32::RED, format!("エラー: {}", error_count));
+            ui.colored_label(theme::STATUS_ERROR, format!("エラー: {}", error_count));
         } else {
             ui.label("エラー: 0");
         }
