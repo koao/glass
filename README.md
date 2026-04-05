@@ -17,6 +17,52 @@ A half-duplex serial monitor for Windows, built with Rust and egui.
 - **Serial configuration** — baud rate, data bits, parity, stop bits
 - **Dark theme** — eye-friendly for long monitoring sessions
 - **Error tracking** — framing, overrun, and parity error counts
+- **Protocol definition** — TOML-based protocol definitions for automatic frame extraction and message decoding
+
+## Protocol Definition
+
+Define communication protocols in TOML files under the `protocols/` directory. Glass automatically extracts frames from raw serial data, matches them against message patterns, and decodes fields.
+
+### List View
+
+Matched messages are displayed in a scrollable list with colored titles and inline fields. Click a message to expand its full field details.
+
+![Protocol List View](docs/screenshots/protocol_list.png)
+
+### Wrap View
+
+Messages are displayed as compact pills in a wrapping layout. During live monitoring, a circular buffer with a cursor caret shows the current write position.
+
+![Protocol Wrap View](docs/screenshots/protocol_wrap.png)
+
+### TOML Format
+
+```toml
+[protocol]
+title = "My Protocol"
+frame_idle_threshold_ms = 5.0
+
+# Frame rules define how raw bytes are extracted into frames
+[[protocol.frame_rules]]
+trigger = "02"       # Start byte (hex)
+end = "03"           # End byte
+end_extra = 2        # Extra bytes after end (e.g. checksum)
+max_length = 256
+
+# Message definitions match frames by HEX regex pattern
+[[messages]]
+id = "msg_a"
+title = "Message A"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Addr"
+offset = 1
+size = 3
+inline = true        # Show in list row
+description = "Destination address"
+```
 
 ## Requirements
 
