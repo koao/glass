@@ -1,4 +1,5 @@
 use egui::Ui;
+use egui_phosphor::regular;
 
 use crate::app::{GlassApp, MonitorState, SettingsTab};
 use crate::serial::config::{BAUD_RATES, DATA_BITS, ParitySetting, StopBitsSetting};
@@ -77,7 +78,7 @@ fn draw_serial_tab(ui: &mut Ui, app: &mut GlassApp) {
 
     ui.horizontal(|ui| {
         ui.label("ポート:");
-        if ui.button("🔄").on_hover_text("ポート一覧を更新").clicked() {
+        if ui.button(regular::ARROWS_CLOCKWISE).on_hover_text("ポート一覧を更新").clicked() {
             app.refresh_ports();
         }
     });
@@ -127,12 +128,24 @@ fn draw_serial_tab(ui: &mut Ui, app: &mut GlassApp) {
     ui.add_space(4.0);
 
     if !is_stopped {
-        ui.colored_label(theme::TEXT_MUTED, "⚠ 設定変更は停止中のみ可能");
+        ui.colored_label(theme::TEXT_MUTED, format!("{} 設定変更は停止中のみ可能", regular::WARNING));
     }
 }
 
-/// 表示設定タブ（今後の拡張用）
-fn draw_display_tab(ui: &mut Ui, _app: &mut GlassApp) {
+/// 表示設定タブ
+fn draw_display_tab(ui: &mut Ui, app: &mut GlassApp) {
     ui.add_space(4.0);
-    ui.label("表示に関する設定は今後追加予定です。");
+
+    ui.label("IDLE閾値:");
+    ui.add(
+        egui::DragValue::new(&mut app.idle_threshold_ms)
+            .range(1.0..=1000.0)
+            .speed(1.0)
+            .suffix(" ms"),
+    );
+    ui.add_space(4.0);
+    ui.colored_label(
+        theme::TEXT_MUTED,
+        "バイト間の無通信時間がこの値を超えるとIDLEマーカーを表示",
+    );
 }

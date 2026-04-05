@@ -33,6 +33,12 @@ pub const STATUS_ERROR: Color32 = Color32::from_rgb(212, 112, 112);
 // --- 汎用 ---
 pub const TEXT_MUTED: Color32 = Color32::from_rgb(136, 144, 160);
 
+// --- 検索ハイライト ---
+/// 全一致箇所の背景（暗い黄色）
+pub const SEARCH_HIGHLIGHT_BG: Color32 = Color32::from_rgb(80, 80, 40);
+/// 現在選択中の一致箇所の背景（暗い緑）
+pub const SEARCH_CURRENT_BG: Color32 = Color32::from_rgb(60, 100, 60);
+
 // --- ヘッダーバー ---
 /// ステータスピル背景（停止中）
 pub const PILL_BG_STOPPED: Color32 = Color32::from_rgb(60, 63, 80);

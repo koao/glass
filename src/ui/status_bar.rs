@@ -1,4 +1,5 @@
 use egui::{Ui, RichText, CornerRadius, Stroke};
+use egui_phosphor::regular;
 
 use crate::app::{GlassApp, MonitorState};
 use crate::ui::theme;
@@ -52,17 +53,17 @@ const PILL_MIN_WIDTH: f32 = 220.0;
 fn draw_status_pill(ui: &mut Ui, app: &GlassApp) {
     let (text, text_color, bg_color) = match app.state {
         MonitorState::Stopped => (
-            "● 停止".to_string(),
+            format!("{} 停止", regular::CIRCLE),
             theme::STATUS_STOPPED,
             theme::PILL_BG_STOPPED,
         ),
         MonitorState::Running => (
-            format!("● {} {}bps 受信中", app.config.port_name, app.config.baud_rate),
+            format!("{} {} {}bps 受信中", regular::CIRCLE, app.config.port_name, app.config.baud_rate),
             theme::STATUS_RUNNING,
             theme::PILL_BG_RUNNING,
         ),
         MonitorState::Paused => (
-            format!("● {} 一時停止", app.config.port_name),
+            format!("{} {} 一時停止", regular::CIRCLE, app.config.port_name),
             theme::STATUS_PAUSED,
             theme::PILL_BG_PAUSED,
         ),

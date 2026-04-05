@@ -3,6 +3,7 @@ use egui::epaint::TextShape;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
+use crate::ui::search::SearchState;
 use crate::ui::theme;
 
 // === フォントサイズ ===
@@ -80,6 +81,25 @@ fn map_cell_to_entry(cell_idx: usize, buf_len: usize, total_cells: usize) -> Opt
     }
 }
 
+/// 検索ハイライトの背景色を取得（点滅アニメーション付き）
+fn search_highlight_bg(search: &SearchState, entry_idx: usize, time: f64) -> Option<Color32> {
+    if search.is_current_highlight(entry_idx) {
+        Some(theme::SEARCH_CURRENT_BG)
+    } else if search.is_highlighted(entry_idx) {
+        // sin波で点滅（0.3〜1.0の範囲でアルファ変動、周期2秒）
+        let alpha = 0.65 + 0.35 * (time * std::f64::consts::PI).sin();
+        let bg = theme::SEARCH_HIGHLIGHT_BG;
+        Some(Color32::from_rgba_premultiplied(
+            (bg.r() as f64 * alpha) as u8,
+            (bg.g() as f64 * alpha) as u8,
+            (bg.b() as f64 * alpha) as u8,
+            (255.0 * alpha * 0.7) as u8,
+        ))
+    } else {
+        None
+    }
+}
+
 /// メインモニタビュー描画
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     if app.state != MonitorState::Paused {
@@ -88,6 +108,11 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     }
 
     let (cell_w, cell_h, cols) = calc_layout(ui);
+
+    // 検索ハイライトがある場合は再描画（点滅アニメーション用、30fps制限）
+    if app.search.has_highlights() {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+    }
 
     match app.state {
         MonitorState::Running | MonitorState::Paused => {
@@ -113,11 +138,19 @@ fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols:
     draw_row_lines(&painter, rect, cols, rows, cell_w, cell_h);
 
     let buf_len = app.display_buffer.len();
+    let time = ui.input(|i| i.time);
 
     for cell_idx in 0..total_cells {
-        if let Some(entry_idx) = map_cell_to_entry(cell_idx, buf_len, total_cells) {
-            let cell = &app.display_buffer.cells()[entry_idx];
+        if let Some(disp_idx) = map_cell_to_entry(cell_idx, buf_len, total_cells) {
+            let cell = &app.display_buffer.cells()[disp_idx];
             let cr = cell_rect(rect, cell_idx, cols, cell_w, cell_h);
+
+            // 検索ハイライト背景
+            let entry_idx = app.display_buffer.entry_indices()[disp_idx];
+            if let Some(bg) = search_highlight_bg(&app.search, entry_idx, time) {
+                painter.rect_filled(cr, 0.0, bg);
+            }
+
             draw_cell(&painter, cr, cell, &app.display_mode);
         }
     }
@@ -151,7 +184,7 @@ fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols:
 }
 
 /// 停止時: スクロールで全体を表示
-fn draw_scrollable(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols: usize) {
+fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, cols: usize) {
     let total_cells = app.display_buffer.len();
     if total_cells == 0 {
         ui.colored_label(
@@ -161,6 +194,11 @@ fn draw_scrollable(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols: 
         return;
     }
     let total_rows = (total_cells + cols - 1) / cols;
+
+    // スクロール先セルインデックスを計算
+    let scroll_to_cell: Option<usize> = app.search.take_scroll_target().and_then(|entry_idx| {
+        app.display_buffer.entry_indices().iter().position(|&ei| ei == entry_idx)
+    });
 
     ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -172,12 +210,30 @@ fn draw_scrollable(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols: 
             painter.rect_filled(rect, 0.0, theme::GRID_BG);
             draw_row_lines(&painter, rect, cols, total_rows, cell_w, cell_h);
 
+            let time = ui.input(|i| i.time);
+
             for (i, cell) in app.display_buffer.cells().iter().enumerate() {
                 let cr = cell_rect(rect, i, cols, cell_w, cell_h);
                 if cr.max.y < ui.clip_rect().min.y || cr.min.y > ui.clip_rect().max.y {
-                    continue;
+                    // スクロール先セルの場合はスキップしない（描画は必要）
+                    if scroll_to_cell != Some(i) {
+                        continue;
+                    }
                 }
+
+                // 検索ハイライト背景
+                let entry_idx = app.display_buffer.entry_indices()[i];
+                if let Some(bg) = search_highlight_bg(&app.search, entry_idx, time) {
+                    painter.rect_filled(cr, 0.0, bg);
+                }
+
                 draw_cell(&painter, cr, cell, &app.display_mode);
+            }
+
+            // スクロール先にジャンプ
+            if let Some(cell_idx) = scroll_to_cell {
+                let target = cell_rect(rect, cell_idx, cols, cell_w, cell_h);
+                ui.scroll_to_rect(target, Some(egui::Align::Center));
             }
         });
 }

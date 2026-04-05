@@ -1,26 +1,49 @@
-use egui::Ui;
+use egui::{Ui, Vec2};
+use egui_phosphor::regular;
 
-use crate::app::GlassApp;
-use crate::ui::search::SearchMode;
+use crate::app::{GlassApp, MonitorState};
 use crate::ui::theme;
 
 /// トグル式検索バー描画
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
-    ui.horizontal(|ui| {
+    // ボタン1行分の高さに制限しつつ垂直中央揃え
+    let row_height = ui.text_style_height(&egui::TextStyle::Button)
+        + ui.spacing().button_padding.y * 2.0
+        + ui.spacing().item_spacing.y;
+    ui.allocate_ui_with_layout(
+        Vec2::new(ui.available_width(), row_height),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
         ui.label("検索:");
-        ui.selectable_value(&mut app.search.mode, SearchMode::Hex, "HEX");
-        ui.selectable_value(&mut app.search.mode, SearchMode::Ascii, "ASCII");
 
         let response = ui.add(
-            egui::TextEdit::singleline(&mut app.search.query).desired_width(200.0),
+            egui::TextEdit::singleline(&mut app.search.query)
+                .desired_width(200.0)
+                .hint_text("例: OK$0D$0A"),
         );
         let enter_pressed =
             response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
         let search_clicked = ui.button("検索").clicked() || enter_pressed;
+
+        // クリアボタン（検索実行済みの場合に有効）
+        if ui
+            .add_enabled(app.search.has_searched, egui::Button::new(format!("{} クリア", regular::ERASER)))
+            .clicked()
+        {
+            app.search.reset();
+        }
+
+        // 受信中は移動ボタン無効
+        let is_stopped = app.state == MonitorState::Stopped;
         let has_results = app.search.result_count() > 0;
-        let prev_clicked = ui.add_enabled(has_results, egui::Button::new("◀")).clicked();
-        let next_clicked = ui.add_enabled(has_results, egui::Button::new("▶")).clicked();
+        let can_navigate = has_results && is_stopped;
+        let prev_clicked = ui
+            .add_enabled(can_navigate, egui::Button::new(regular::CARET_LEFT))
+            .clicked();
+        let next_clicked = ui
+            .add_enabled(can_navigate, egui::Button::new(regular::CARET_RIGHT))
+            .clicked();
 
         // バッファのクローンは操作があった場合のみ1回
         if search_clicked || prev_clicked || next_clicked {
@@ -34,19 +57,76 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             }
         }
 
-        if !app.search.query.is_empty() {
+        if app.search.has_searched {
             let count = app.search.result_count();
             if count > 0 {
-                ui.label(format!("{}/{}", app.search.current + 1, count));
+                ui.label(format!("{}/{}", app.search.current_index() + 1, count));
             } else {
                 ui.colored_label(theme::TEXT_MUTED, "一致なし");
             }
         }
 
+        // 右寄せ: ヘルプボタン
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("✕").on_hover_text("閉じる (Esc)").clicked() {
-                app.ui_state.show_search_bar = false;
+            if ui.button(format!("{} ヘルプ", regular::INFO)).clicked() {
+                app.ui_state.show_search_help = !app.ui_state.show_search_help;
             }
         });
     });
+}
+
+/// 検索ヘルプウィンドウ描画
+pub fn draw_help(ui: &mut Ui, app: &mut GlassApp) {
+    if !app.ui_state.show_search_help {
+        return;
+    }
+    egui::Window::new("検索ヘルプ")
+        .collapsible(false)
+        .resizable(false)
+        .default_width(280.0)
+        .open(&mut app.ui_state.show_search_help)
+        .show(ui.ctx(), |ui| {
+            ui.label("テキストと16進数を混在して検索できます。");
+            ui.add_space(4.0);
+
+            egui::Grid::new("search_help_grid")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    ui.strong("入力");
+                    ui.strong("意味");
+                    ui.end_row();
+
+                    ui.monospace("$XX");
+                    ui.label("16進数バイト");
+                    ui.end_row();
+
+                    ui.monospace("その他の文字");
+                    ui.label("ASCII文字そのまま");
+                    ui.end_row();
+                });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.label("入力例:");
+            ui.add_space(2.0);
+
+            egui::Grid::new("search_help_examples")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    ui.monospace("OK$0D$0A");
+                    ui.label("-> OK + CR + LF");
+                    ui.end_row();
+
+                    ui.monospace("$02$03");
+                    ui.label("-> STX + ETX");
+                    ui.end_row();
+
+                    ui.monospace("Hello");
+                    ui.label("-> ASCII \"Hello\"");
+                    ui.end_row();
+                });
+        });
 }

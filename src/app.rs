@@ -40,6 +40,8 @@ pub struct UiState {
     pub show_settings_window: bool,
     /// 検索バー表示フラグ
     pub show_search_bar: bool,
+    /// 検索ヘルプウィンドウ表示フラグ
+    pub show_search_help: bool,
     /// 設定ウィンドウの選択タブ
     pub settings_tab: SettingsTab,
 }
@@ -105,6 +107,7 @@ impl GlassApp {
             ui_state: UiState {
                 show_settings_window: settings.show_settings_window,
                 show_search_bar: settings.show_search_bar,
+                show_search_help: false,
                 settings_tab: SettingsTab::Serial,
             },
         };
@@ -141,6 +144,7 @@ impl GlassApp {
             }
         }
 
+        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
         ctx.set_fonts(fonts);
     }
 
@@ -170,6 +174,8 @@ impl GlassApp {
             self.last_error = Some("COMポートを選択してください".to_string());
             return;
         }
+
+        self.clear_all();
 
         let (data_tx, data_rx) = crossbeam_channel::unbounded();
         let (stop_tx, stop_rx) = crossbeam_channel::bounded(1);
@@ -259,6 +265,12 @@ impl eframe::App for GlassApp {
         // チャネルからデータ受信
         self.drain_channel();
 
+        // 受信中の検索自動更新
+        if self.state == MonitorState::Running && self.ui_state.show_search_bar {
+            let entries = self.buffer.entries();
+            self.search.auto_refresh(entries);
+        }
+
         // キーボードショートカット
         let (ctrl_f, escape) = ui.input(|i| {
             (
@@ -268,9 +280,13 @@ impl eframe::App for GlassApp {
         });
         if ctrl_f {
             self.ui_state.show_search_bar = !self.ui_state.show_search_bar;
+            if !self.ui_state.show_search_bar {
+                self.search.reset();
+            }
         }
-        if escape {
+        if escape && self.ui_state.show_search_bar {
             self.ui_state.show_search_bar = false;
+            self.search.reset();
         }
 
         // ヘッダーバー（スリム1行）
@@ -292,8 +308,9 @@ impl eframe::App for GlassApp {
             ui::monitor_view::draw(ui, self);
         });
 
-        // フローティング設定ウィンドウ
+        // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
+        ui::search_bar::draw_help(ui, self);
 
         // Running状態では継続的に再描画
         if self.state == MonitorState::Running {

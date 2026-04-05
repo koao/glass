@@ -1,4 +1,5 @@
 use egui::Ui;
+use egui_phosphor::regular;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::ui::theme;
@@ -12,8 +13,12 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         let is_running = app.state == MonitorState::Running;
         let is_paused = app.state == MonitorState::Paused;
 
-        // ▶ 開始/再開
-        let start_label = if is_paused { "▶ 再開" } else { "▶ 開始" };
+        // 開始/再開
+        let start_label = if is_paused {
+            format!("{} 再開", regular::PLAY)
+        } else {
+            format!("{} 開始", regular::PLAY)
+        };
         if ui
             .add_enabled(is_stopped || is_paused, egui::Button::new(start_label))
             .clicked()
@@ -25,17 +30,17 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             }
         }
 
-        // ⏸ 一時停止
+        // 一時停止
         if ui
-            .add_enabled(is_running, egui::Button::new("⏸ 一時停止"))
+            .add_enabled(is_running, egui::Button::new(format!("{} 一時停止", regular::PAUSE)))
             .clicked()
         {
             app.pause();
         }
 
-        // ⏹ 停止
+        // 停止
         if ui
-            .add_enabled(!is_stopped, egui::Button::new("⏹ 停止"))
+            .add_enabled(!is_stopped, egui::Button::new(format!("{} 停止", regular::STOP)))
             .clicked()
         {
             app.stop();
@@ -47,17 +52,6 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         ui.selectable_value(&mut app.display_mode, DisplayMode::Hex, "HEX");
         ui.selectable_value(&mut app.display_mode, DisplayMode::Ascii, "ASCII");
 
-        ui.separator();
-
-        // IDLE閾値設定
-        ui.label("IDLE:");
-        ui.add(
-            egui::DragValue::new(&mut app.idle_threshold_ms)
-                .range(1.0..=1000.0)
-                .speed(1.0)
-                .suffix(" ms"),
-        );
-
         // エラー表示
         if let Some(err) = &app.last_error {
             ui.add_space(4.0);
@@ -66,28 +60,30 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // 右寄せアイコンボタン
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // 設定ウィンドウトグル
-            if ui.button("⚙").on_hover_text("設定").clicked() {
+            // 設定ウィンドウトグル（停止中のみ）
+            if ui
+                .add_enabled(is_stopped, egui::Button::new(regular::GEAR_SIX))
+                .on_hover_text(if is_stopped { "設定" } else { "設定 (停止中のみ)" })
+                .clicked()
+            {
                 app.ui_state.show_settings_window = !app.ui_state.show_settings_window;
             }
 
             // クリア
-            if ui.button("🗑").on_hover_text("クリア").clicked() {
+            if ui.button(regular::TRASH).on_hover_text("クリア").clicked() {
                 app.clear_all();
             }
 
             // 検索トグル
-            let search_label = if app.ui_state.show_search_bar {
-                "🔍✕"
-            } else {
-                "🔍"
-            };
             if ui
-                .button(search_label)
+                .button(regular::MAGNIFYING_GLASS)
                 .on_hover_text("検索 (Ctrl+F)")
                 .clicked()
             {
                 app.ui_state.show_search_bar = !app.ui_state.show_search_bar;
+                if !app.ui_state.show_search_bar {
+                    app.search.reset();
+                }
             }
         });
     });
