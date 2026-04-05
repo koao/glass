@@ -54,12 +54,11 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         ui.separator();
 
-        // 表示モード切替（モニタタブ時のみ有効）
-        let is_monitor = app.active_tab == ViewTab::Monitor;
-        ui.add_enabled_ui(is_monitor, |ui| {
+        // 表示モード切替（モニタタブ時のみ表示）
+        if app.active_tab == ViewTab::Monitor {
             ui.selectable_value(&mut app.display_mode, DisplayMode::Hex, "HEX");
             ui.selectable_value(&mut app.display_mode, DisplayMode::Ascii, "ASCII");
-        });
+        }
 
         // エラー表示
         if let Some(err) = &app.last_error {
