@@ -932,7 +932,7 @@ fn load_selected_protocol(app: &mut GlassApp, idx: usize) {
                 app.ui_state.wrap.reset();
             }
             Err(e) => {
-                app.last_error = Some(e);
+                app.show_error(&e);
             }
         }
     }

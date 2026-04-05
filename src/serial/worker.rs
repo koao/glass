@@ -16,10 +16,17 @@ pub fn spawn_receiver(
 
     #[cfg(target_os = "windows")]
     {
-        let config = config.clone();
+        // メインスレッドでポートを開いてエラーを呼び出し元に返す
+        let port_handle = win32_receiver::open_and_configure(config)
+            .map_err(|e| serialport::Error::new(serialport::ErrorKind::Io(e.kind()), e.to_string()))?;
         let handle = std::thread::spawn(move || {
-            if let Err(e) = win32_receiver::run(&config, idle_threshold, byte_duration, sender, stop)
-            {
+            if let Err(e) = win32_receiver::run_with_handle(
+                port_handle,
+                idle_threshold,
+                byte_duration,
+                sender,
+                stop,
+            ) {
                 eprintln!("受信エラー: {}", e);
             }
         });
@@ -202,8 +209,19 @@ mod win32_receiver {
         }
     }
 
-    pub fn run(
-        config: &SerialConfig,
+    /// メインスレッドでポートを開いて設定する（エラーを呼び出し元に返すため）
+    pub fn open_and_configure(config: &SerialConfig) -> io::Result<isize> {
+        let handle = open_overlapped(&config.port_name)?;
+        if let Err(e) = configure_port(handle, config) {
+            unsafe { CloseHandle(handle) };
+            return Err(e);
+        }
+        Ok(handle)
+    }
+
+    /// 事前にオープン済みのハンドルで受信ループを実行
+    pub fn run_with_handle(
+        handle: isize,
         idle_threshold: Duration,
         byte_duration: Duration,
         sender: Sender<DataEntry>,
@@ -211,10 +229,7 @@ mod win32_receiver {
     ) -> io::Result<()> {
         init_thread();
 
-        let handle = open_overlapped(&config.port_name)?;
         let _handle_guard = HandleGuard(handle);
-
-        configure_port(handle, config)?;
 
         unsafe {
             if SetCommMask(handle, EV_RXCHAR) == 0 {

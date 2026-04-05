@@ -166,6 +166,8 @@ pub struct UiState {
     pub protocol_view_mode: ProtocolViewMode,
     /// ラップ表示の状態
     pub wrap: WrapViewState,
+    /// エラーメッセージダイアログ
+    pub error_message: Option<String>,
 }
 
 /// アプリケーション本体
@@ -182,7 +184,6 @@ pub struct GlassApp {
     receiver: Option<Receiver<DataEntry>>,
     stop_sender: Option<Sender<()>>,
     worker_handle: Option<std::thread::JoinHandle<()>>,
-    pub last_error: Option<String>,
     pub search: SearchState,
     pub ui_state: UiState,
     pub lang: Language,
@@ -257,7 +258,6 @@ impl GlassApp {
             receiver: None,
             stop_sender: None,
             worker_handle: None,
-            last_error: None,
             search: SearchState::new(),
             ui_state: UiState {
                 show_settings_window: settings.show_settings_window,
@@ -278,6 +278,7 @@ impl GlassApp {
                     ProtocolViewMode::List
                 },
                 wrap: WrapViewState::new(),
+                error_message: None,
             },
             lang,
             t: lang.texts(),
@@ -345,9 +346,14 @@ impl GlassApp {
             .collect();
     }
 
+    /// エラーメッセージをダイアログで表示
+    pub fn show_error(&mut self, message: &str) {
+        self.ui_state.error_message = Some(message.to_string());
+    }
+
     pub fn start(&mut self) {
         if self.config.port_name.is_empty() {
-            self.last_error = Some(self.t.err_no_port.to_string());
+            self.show_error(self.t.err_no_port);
             return;
         }
 
@@ -364,10 +370,9 @@ impl GlassApp {
                 self.worker_handle = Some(handle);
                 self.state = MonitorState::Running;
                 self.last_byte_time = Some(Instant::now());
-                self.last_error = None;
             }
             Err(e) => {
-                self.last_error = Some(format!("{}: {}", self.t.err_port_open, e));
+                self.show_error(&format!("{}: {}", self.t.err_port_open, e));
             }
         }
     }
@@ -438,11 +443,11 @@ impl GlassApp {
             match serde_json::to_string_pretty(&glass_file) {
                 Ok(json) => {
                     if let Err(e) = std::fs::write(&path, json) {
-                        self.last_error = Some(format!("{}: {}", self.t.err_save_file, e));
+                        self.show_error(&format!("{}: {}", self.t.err_save_file, e));
                     }
                 }
                 Err(e) => {
-                    self.last_error = Some(format!("{}: {}", self.t.err_save_file, e));
+                    self.show_error(&format!("{}: {}", self.t.err_save_file, e));
                 }
             }
         }
@@ -467,14 +472,13 @@ impl GlassApp {
                             self.protocol_state.flush(engine);
                         }
                         self.search = SearchState::new();
-                        self.last_error = None;
                     }
                     Err(e) => {
-                        self.last_error = Some(format!("{}: {}", self.t.err_load_file, e));
+                        self.show_error(&format!("{}: {}", self.t.err_load_file, e));
                     }
                 },
                 Err(e) => {
-                    self.last_error = Some(format!("{}: {}", self.t.err_load_file, e));
+                    self.show_error(&format!("{}: {}", self.t.err_load_file, e));
                 }
             }
         }
@@ -491,7 +495,7 @@ impl GlassApp {
             let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
             if let Some(img) = image::RgbaImage::from_raw(w as u32, h as u32, rgba) {
                 if let Err(e) = img.save(&path) {
-                    self.last_error = Some(format!("{}: {}", self.t.err_screenshot, e));
+                    self.show_error(&format!("{}: {}", self.t.err_screenshot, e));
                 }
             }
         }
@@ -613,6 +617,7 @@ impl eframe::App for GlassApp {
         // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
         ui::search_bar::draw_help(ui, self);
+        ui::error_dialog::draw(ui, self);
 
         // スクリーンショット要求の送信
         if self.ui_state.screenshot_requested {

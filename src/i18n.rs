@@ -120,6 +120,8 @@ pub struct Texts {
     pub err_save_file: &'static str,
     pub err_load_file: &'static str,
     pub err_screenshot: &'static str,
+    pub err_dialog_title: &'static str,
+    pub ok: &'static str,
 }
 
 const JA: Texts = Texts {
@@ -208,6 +210,8 @@ const JA: Texts = Texts {
     err_save_file: "ファイル保存失敗",
     err_load_file: "ファイル読み込み失敗",
     err_screenshot: "スクリーンショット保存失敗",
+    err_dialog_title: "エラー",
+    ok: "OK",
 };
 
 const EN: Texts = Texts {
@@ -296,4 +300,6 @@ const EN: Texts = Texts {
     err_save_file: "Failed to save file",
     err_load_file: "Failed to load file",
     err_screenshot: "Failed to save screenshot",
+    err_dialog_title: "Error",
+    ok: "OK",
 };

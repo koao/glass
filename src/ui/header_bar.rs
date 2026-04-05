@@ -2,7 +2,6 @@ use egui::Ui;
 use egui_phosphor::regular;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState, ViewTab};
-use crate::ui::theme;
 
 /// ヘッダーバー描画（安定レイアウト: 全ボタン常時表示）
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
@@ -58,12 +57,6 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         if app.active_tab == ViewTab::Monitor {
             ui.selectable_value(&mut app.display_mode, DisplayMode::Hex, "HEX");
             ui.selectable_value(&mut app.display_mode, DisplayMode::Ascii, "ASCII");
-        }
-
-        // エラー表示
-        if let Some(err) = &app.last_error {
-            ui.add_space(4.0);
-            ui.colored_label(theme::STATUS_ERROR, err);
         }
 
         // 右寄せアイコンボタン
