@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 mod app;
+mod i18n;
 mod model;
 mod serial;
 mod settings;

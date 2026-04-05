@@ -189,7 +189,7 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
     if total_cells == 0 {
         ui.colored_label(
             theme::TEXT_MUTED,
-            "データなし — COMポートを選択して開始してください",
+            app.t.no_data,
         );
         return;
     }

@@ -14,21 +14,21 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         Vec2::new(ui.available_width(), row_height),
         egui::Layout::left_to_right(egui::Align::Center),
         |ui| {
-        ui.label("検索:");
+        ui.label(app.t.search_label);
 
         let response = ui.add(
             egui::TextEdit::singleline(&mut app.search.query)
                 .desired_width(200.0)
-                .hint_text("例: OK$0D$0A"),
+                .hint_text(app.t.search_hint),
         );
         let enter_pressed =
             response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
-        let search_clicked = ui.button("検索").clicked() || enter_pressed;
+        let search_clicked = ui.button(app.t.search_button).clicked() || enter_pressed;
 
         // クリアボタン（検索実行済みの場合に有効）
         if ui
-            .add_enabled(app.search.has_searched, egui::Button::new(format!("{} クリア", regular::ERASER)))
+            .add_enabled(app.search.has_searched, egui::Button::new(format!("{} {}", regular::ERASER, app.t.search_clear)))
             .clicked()
         {
             app.search.reset();
@@ -62,13 +62,13 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             if count > 0 {
                 ui.label(format!("{}/{}", app.search.current_index() + 1, count));
             } else {
-                ui.colored_label(theme::TEXT_MUTED, "一致なし");
+                ui.colored_label(theme::TEXT_MUTED, app.t.no_match);
             }
         }
 
         // 右寄せ: ヘルプボタン
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button(format!("{} ヘルプ", regular::INFO)).clicked() {
+            if ui.button(format!("{} {}", regular::INFO, app.t.help)).clicked() {
                 app.ui_state.show_search_help = !app.ui_state.show_search_help;
             }
         });
@@ -80,36 +80,37 @@ pub fn draw_help(ui: &mut Ui, app: &mut GlassApp) {
     if !app.ui_state.show_search_help {
         return;
     }
-    egui::Window::new("検索ヘルプ")
+    egui::Window::new(app.t.search_help_title)
+        .id(egui::Id::new("search_help_window"))
         .collapsible(false)
         .resizable(false)
         .default_width(280.0)
         .open(&mut app.ui_state.show_search_help)
         .show(ui.ctx(), |ui| {
-            ui.label("テキストと16進数を混在して検索できます。");
+            ui.label(app.t.search_help_desc);
             ui.add_space(4.0);
 
             egui::Grid::new("search_help_grid")
                 .num_columns(2)
                 .spacing([12.0, 4.0])
                 .show(ui, |ui| {
-                    ui.strong("入力");
-                    ui.strong("意味");
+                    ui.strong(app.t.search_help_input);
+                    ui.strong(app.t.search_help_meaning);
                     ui.end_row();
 
                     ui.monospace("$XX");
-                    ui.label("16進数バイト");
+                    ui.label(app.t.search_help_hex_byte);
                     ui.end_row();
 
-                    ui.monospace("その他の文字");
-                    ui.label("ASCII文字そのまま");
+                    ui.monospace(app.t.search_help_other_chars);
+                    ui.label(app.t.search_help_ascii_literal);
                     ui.end_row();
                 });
 
             ui.add_space(8.0);
             ui.separator();
             ui.add_space(4.0);
-            ui.label("入力例:");
+            ui.label(app.t.search_help_examples);
             ui.add_space(2.0);
 
             egui::Grid::new("search_help_examples")

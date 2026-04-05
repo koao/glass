@@ -15,9 +15,9 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // 開始/再開
         let start_label = if is_paused {
-            format!("{} 再開", regular::PLAY)
+            format!("{} {}", regular::PLAY, app.t.resume)
         } else {
-            format!("{} 開始", regular::PLAY)
+            format!("{} {}", regular::PLAY, app.t.start)
         };
         if ui
             .add_enabled(is_stopped || is_paused, egui::Button::new(start_label))
@@ -32,7 +32,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // 一時停止
         if ui
-            .add_enabled(is_running, egui::Button::new(format!("{} 一時停止", regular::PAUSE)))
+            .add_enabled(is_running, egui::Button::new(format!("{} {}", regular::PAUSE, app.t.pause)))
             .clicked()
         {
             app.pause();
@@ -40,7 +40,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // 停止
         if ui
-            .add_enabled(!is_stopped, egui::Button::new(format!("{} 停止", regular::STOP)))
+            .add_enabled(!is_stopped, egui::Button::new(format!("{} {}", regular::STOP, app.t.stop)))
             .clicked()
         {
             app.stop();
@@ -63,21 +63,21 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             // 設定ウィンドウトグル（停止中のみ）
             if ui
                 .add_enabled(is_stopped, egui::Button::new(regular::GEAR_SIX))
-                .on_hover_text(if is_stopped { "設定" } else { "設定 (停止中のみ)" })
+                .on_hover_text(if is_stopped { app.t.settings } else { app.t.settings_stopped_only })
                 .clicked()
             {
                 app.ui_state.show_settings_window = !app.ui_state.show_settings_window;
             }
 
             // クリア
-            if ui.button(regular::TRASH).on_hover_text("クリア").clicked() {
+            if ui.button(regular::TRASH).on_hover_text(app.t.clear).clicked() {
                 app.clear_all();
             }
 
             // 検索トグル
             if ui
                 .button(regular::MAGNIFYING_GLASS)
-                .on_hover_text("検索 (Ctrl+F)")
+                .on_hover_text(app.t.search_shortcut)
                 .clicked()
             {
                 app.ui_state.show_search_bar = !app.ui_state.show_search_bar;

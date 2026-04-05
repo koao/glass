@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::{Receiver, Sender};
 use eframe::egui;
 
+use crate::i18n::{Language, Texts};
 use crate::model::buffer::MonitorBuffer;
 use crate::model::entry::DataEntry;
 use crate::model::grid::DisplayBuffer;
@@ -63,6 +64,8 @@ pub struct GlassApp {
     pub last_error: Option<String>,
     pub search: SearchState,
     pub ui_state: UiState,
+    pub lang: Language,
+    pub t: &'static Texts,
 }
 
 impl GlassApp {
@@ -83,6 +86,7 @@ impl GlassApp {
         } else {
             DisplayMode::Hex
         };
+        let lang = settings.language;
 
         let mut app = Self {
             config: SerialConfig {
@@ -110,6 +114,8 @@ impl GlassApp {
                 show_search_help: false,
                 settings_tab: SettingsTab::Serial,
             },
+            lang,
+            t: lang.texts(),
         };
         app.refresh_ports();
         app
@@ -171,7 +177,7 @@ impl GlassApp {
 
     pub fn start(&mut self) {
         if self.config.port_name.is_empty() {
-            self.last_error = Some("COMポートを選択してください".to_string());
+            self.last_error = Some(self.t.err_no_port.to_string());
             return;
         }
 
@@ -191,7 +197,7 @@ impl GlassApp {
                 self.last_error = None;
             }
             Err(e) => {
-                self.last_error = Some(format!("ポートオープン失敗: {}", e));
+                self.last_error = Some(format!("{}: {}", self.t.err_port_open, e));
             }
         }
     }
@@ -255,6 +261,7 @@ impl GlassApp {
             },
             show_settings_window: self.ui_state.show_settings_window,
             show_search_bar: self.ui_state.show_search_bar,
+            language: self.lang,
         };
         settings.save();
     }

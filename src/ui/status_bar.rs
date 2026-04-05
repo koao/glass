@@ -13,15 +13,15 @@ pub fn draw(ui: &mut Ui, app: &GlassApp) {
         ui.separator();
 
         // 受信バイト数
-        ui.label(format!("受信: {} bytes", app.buffer.byte_count()));
+        ui.label(format!("{}: {} bytes", app.t.received, app.buffer.byte_count()));
         ui.separator();
 
         // エラー数
         let error_count = app.buffer.error_count();
         if error_count > 0 {
-            ui.colored_label(theme::STATUS_ERROR, format!("エラー: {}", error_count));
+            ui.colored_label(theme::STATUS_ERROR, format!("{}: {}", app.t.errors, error_count));
         } else {
-            ui.label("エラー: 0");
+            ui.label(format!("{}: 0", app.t.errors));
         }
 
         ui.separator();
@@ -36,7 +36,7 @@ pub fn draw(ui: &mut Ui, app: &GlassApp) {
             crate::serial::config::StopBitsSetting::One => "1",
             crate::serial::config::StopBitsSetting::Two => "2",
         };
-        let port = if app.config.port_name.is_empty() { "未選択" } else { &app.config.port_name };
+        let port = if app.config.port_name.is_empty() { app.t.unselected } else { &app.config.port_name };
         let config_text = format!(
             "{} {}bps {}{}{}", port, app.config.baud_rate, app.config.data_bits, parity_char, stop
         );
@@ -53,17 +53,17 @@ const PILL_MIN_WIDTH: f32 = 220.0;
 fn draw_status_pill(ui: &mut Ui, app: &GlassApp) {
     let (text, text_color, bg_color) = match app.state {
         MonitorState::Stopped => (
-            format!("{} 停止", regular::CIRCLE),
+            format!("{} {}", regular::CIRCLE, app.t.status_stopped),
             theme::STATUS_STOPPED,
             theme::PILL_BG_STOPPED,
         ),
         MonitorState::Running => (
-            format!("{} {} {}bps 受信中", regular::CIRCLE, app.config.port_name, app.config.baud_rate),
+            format!("{} {} {}bps {}", regular::CIRCLE, app.config.port_name, app.config.baud_rate, app.t.status_receiving),
             theme::STATUS_RUNNING,
             theme::PILL_BG_RUNNING,
         ),
         MonitorState::Paused => (
-            format!("{} {} 一時停止", regular::CIRCLE, app.config.port_name),
+            format!("{} {} {}", regular::CIRCLE, app.config.port_name, app.t.status_paused),
             theme::STATUS_PAUSED,
             theme::PILL_BG_PAUSED,
         ),

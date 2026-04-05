@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::Language;
 use crate::serial::config::{ParitySetting, StopBitsSetting};
 
 /// 永続化する設定
@@ -18,6 +19,8 @@ pub struct AppSettings {
     pub show_settings_window: bool,
     #[serde(default)]
     pub show_search_bar: bool,
+    #[serde(default)]
+    pub language: Language,
 }
 
 impl Default for AppSettings {
@@ -32,6 +35,7 @@ impl Default for AppSettings {
             display_mode: "Hex".to_string(),
             show_settings_window: false,
             show_search_bar: false,
+            language: Language::default(),
         }
     }
 }
