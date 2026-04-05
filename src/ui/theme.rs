@@ -60,3 +60,13 @@ pub const PROTOCOL_UNMATCHED: Color32 = Color32::from_rgb(100, 104, 116);
 pub const PROTOCOL_ROW_EVEN: Color32 = Color32::from_rgb(30, 32, 44);
 /// プロトコルパネル行背景（奇数行）
 pub const PROTOCOL_ROW_ODD: Color32 = Color32::from_rgb(26, 27, 38);
+
+// --- ラップ表示 ---
+/// ラップ表示のカーソル行背景
+pub const WRAP_CURSOR_LINE: Color32 = Color32::from_rgb(30, 50, 40);
+/// ラップ表示のメッセージピル背景
+pub const WRAP_PILL_BG: Color32 = Color32::from_rgb(40, 42, 58);
+/// ラップ表示のメッセージピル枠線
+pub const WRAP_PILL_BORDER: Color32 = Color32::from_rgb(56, 60, 80);
+/// ラップ表示の書き込み位置キャレット
+pub const WRAP_CURSOR_CARET: Color32 = Color32::from_rgb(120, 200, 140);

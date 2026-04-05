@@ -29,6 +29,91 @@ pub enum DisplayMode {
     Ascii,
 }
 
+/// プロトコルパネルの表示モード
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProtocolViewMode {
+    /// リスト表示（従来のスクロールリスト）
+    List,
+    /// ラップ表示（横詰め＋行単位ラップアラウンド）
+    Wrap,
+}
+
+/// ラップ表示のスロット種別
+#[derive(Clone, Debug)]
+pub enum WrapSlotKind {
+    /// メッセージ（matchesインデックス）
+    Message(usize),
+    /// IDLE（時間ms）
+    Idle(f64),
+}
+
+/// ラップ表示のスロット（1要素の配置情報）
+#[derive(Clone, Debug)]
+pub struct WrapSlot {
+    pub kind: WrapSlotKind,
+    pub x: f32,
+    pub width: f32,
+}
+
+/// ラップ表示の状態
+pub struct WrapViewState {
+    /// 書き込み行位置
+    pub cursor: usize,
+    /// 描画済みmatches数（差分検知用）
+    pub rendered_count: usize,
+    /// 行ごとのスロット配列
+    pub slots: Vec<Vec<WrapSlot>>,
+    /// 現在行の使用幅
+    pub current_x: f32,
+    /// 画面行数（前回）
+    pub max_rows: usize,
+    /// 画面幅（前回）
+    pub available_width: f32,
+    /// フィルタ状態のハッシュ（変更検知用）
+    pub filter_hash: u64,
+    /// 停止時のレイアウトキャッシュ
+    pub stopped_lines: Vec<Vec<WrapSlot>>,
+    /// 停止時キャッシュのmatches数
+    pub stopped_match_count: usize,
+    /// 停止時キャッシュのフィルタハッシュ
+    pub stopped_filter_hash: u64,
+    /// 停止時キャッシュの画面幅
+    pub stopped_width: f32,
+}
+
+impl WrapViewState {
+    pub fn new() -> Self {
+        Self {
+            cursor: 0,
+            rendered_count: 0,
+            slots: Vec::new(),
+            current_x: 0.0,
+            max_rows: 0,
+            available_width: 0.0,
+            filter_hash: 0,
+            stopped_lines: Vec::new(),
+            stopped_match_count: 0,
+            stopped_filter_hash: 0,
+            stopped_width: 0.0,
+        }
+    }
+
+    /// ラップ状態を全リセット
+    pub fn reset(&mut self) {
+        self.cursor = 0;
+        self.rendered_count = 0;
+        self.slots.clear();
+        self.current_x = 0.0;
+        self.max_rows = 0;
+        self.available_width = 0.0;
+        self.filter_hash = 0;
+        self.stopped_lines.clear();
+        self.stopped_match_count = 0;
+        self.stopped_filter_hash = 0;
+        self.stopped_width = 0.0;
+    }
+}
+
 /// モニタ状態
 #[derive(Clone, Debug, PartialEq)]
 pub enum MonitorState {
@@ -77,6 +162,10 @@ pub struct UiState {
     pub protocol_show_idle: bool,
     /// フィルタ設定ウィンドウ表示フラグ
     pub show_protocol_filter: bool,
+    /// プロトコルパネル表示モード
+    pub protocol_view_mode: ProtocolViewMode,
+    /// ラップ表示の状態
+    pub wrap: WrapViewState,
 }
 
 /// アプリケーション本体
@@ -183,6 +272,12 @@ impl GlassApp {
                 protocol_hidden_ids: HashSet::new(),
                 protocol_show_idle: true,
                 show_protocol_filter: false,
+                protocol_view_mode: if settings.protocol_view_mode == "wrap" {
+                    ProtocolViewMode::Wrap
+                } else {
+                    ProtocolViewMode::List
+                },
+                wrap: WrapViewState::new(),
             },
             lang,
             t: lang.texts(),
@@ -327,6 +422,7 @@ impl GlassApp {
         self.display_buffer.clear();
         self.protocol_state.clear();
         self.ui_state.protocol_expanded.clear();
+        self.ui_state.wrap.reset();
         self.last_byte_time = None;
         self.search = SearchState::new();
     }
@@ -419,6 +515,10 @@ impl GlassApp {
             active_tab: match self.active_tab {
                 ViewTab::Protocol => "protocol".to_string(),
                 _ => "monitor".to_string(),
+            },
+            protocol_view_mode: match self.ui_state.protocol_view_mode {
+                ProtocolViewMode::Wrap => "wrap".to_string(),
+                _ => "list".to_string(),
             },
         };
         settings.save();

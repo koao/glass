@@ -113,6 +113,8 @@ pub struct Texts {
     pub protocol_show_idle: &'static str,
     pub protocol_show_all: &'static str,
     pub protocol_hide_all: &'static str,
+    pub protocol_mode_list: &'static str,
+    pub protocol_mode_wrap: &'static str,
 
     // -- app エラー --
     pub err_no_port: &'static str,
@@ -201,6 +203,8 @@ const JA: Texts = Texts {
     protocol_show_idle: "IDLE表示",
     protocol_show_all: "全て表示",
     protocol_hide_all: "全て非表示",
+    protocol_mode_list: "リスト表示に切替",
+    protocol_mode_wrap: "ラップ表示に切替",
 
     // app エラー
     err_no_port: "COMポートを選択してください",
@@ -289,6 +293,8 @@ const EN: Texts = Texts {
     protocol_show_idle: "Show IDLE",
     protocol_show_all: "Show all",
     protocol_hide_all: "Hide all",
+    protocol_mode_list: "Switch to List",
+    protocol_mode_wrap: "Switch to Wrap",
 
     // app エラー
     err_no_port: "Please select a COM port",

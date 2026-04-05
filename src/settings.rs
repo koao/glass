@@ -24,6 +24,9 @@ pub struct AppSettings {
     /// アクティブタブ ("monitor" or "protocol")
     #[serde(default)]
     pub active_tab: String,
+    /// プロトコルパネル表示モード ("list" or "wrap")
+    #[serde(default)]
+    pub protocol_view_mode: String,
 }
 
 impl Default for AppSettings {
@@ -40,6 +43,7 @@ impl Default for AppSettings {
             show_search_bar: false,
             language: Language::default(),
             active_tab: String::new(),
+            protocol_view_mode: String::new(),
         }
     }
 }
