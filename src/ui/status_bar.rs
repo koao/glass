@@ -22,6 +22,26 @@ pub fn draw(ui: &mut Ui, app: &GlassApp) {
         } else {
             ui.label("エラー: 0");
         }
+
+        ui.separator();
+
+        // シリアル設定簡易表示
+        let parity_char = match app.config.parity {
+            crate::serial::config::ParitySetting::None => "N",
+            crate::serial::config::ParitySetting::Odd => "O",
+            crate::serial::config::ParitySetting::Even => "E",
+        };
+        let stop = match app.config.stop_bits {
+            crate::serial::config::StopBitsSetting::One => "1",
+            crate::serial::config::StopBitsSetting::Two => "2",
+        };
+        let port = if app.config.port_name.is_empty() { "未選択" } else { &app.config.port_name };
+        let config_text = format!(
+            "{} {}bps {}{}{}", port, app.config.baud_rate, app.config.data_bits, parity_char, stop
+        );
+        ui.label(
+            RichText::new(config_text).color(theme::TEXT_MUTED),
+        );
     });
 }
 
