@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 /// シリアルポート設定
@@ -8,6 +10,14 @@ pub struct SerialConfig {
     pub data_bits: u8,
     pub parity: ParitySetting,
     pub stop_bits: StopBitsSetting,
+}
+
+impl SerialConfig {
+    /// 1バイトの送信時間を計算（スタートビット + データビット + パリティ + ストップビット）
+    pub fn byte_duration(&self) -> Duration {
+        let bits = 1 + self.data_bits as u32 + self.parity.bit_count() + self.stop_bits.bit_count();
+        Duration::from_secs_f64(bits as f64 / self.baud_rate as f64)
+    }
 }
 
 impl Default for SerialConfig {
@@ -32,6 +42,13 @@ pub enum ParitySetting {
 
 impl ParitySetting {
     pub const ALL: &[Self] = &[Self::None, Self::Odd, Self::Even];
+
+    pub fn bit_count(&self) -> u32 {
+        match self {
+            Self::None => 0,
+            _ => 1,
+        }
+    }
 
     pub fn label(&self) -> &'static str {
         match self {
@@ -59,6 +76,13 @@ pub enum StopBitsSetting {
 
 impl StopBitsSetting {
     pub const ALL: &[Self] = &[Self::One, Self::Two];
+
+    pub fn bit_count(&self) -> u32 {
+        match self {
+            Self::One => 1,
+            Self::Two => 2,
+        }
+    }
 
     pub fn label(&self) -> &'static str {
         match self {

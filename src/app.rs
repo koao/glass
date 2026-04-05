@@ -219,8 +219,8 @@ impl GlassApp {
     pub fn drain_channel(&mut self) {
         if let Some(rx) = &self.receiver {
             for entry in rx.try_iter() {
-                if matches!(&entry, DataEntry::Byte(..)) {
-                    self.last_byte_time = Some(Instant::now());
+                if let DataEntry::Byte(_, ts) = &entry {
+                    self.last_byte_time = Some(*ts);
                 }
                 self.buffer.push(entry);
             }

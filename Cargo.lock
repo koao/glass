@@ -1276,6 +1276,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serialport",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
