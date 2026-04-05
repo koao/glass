@@ -1,4 +1,5 @@
 /target
 .claude/
 CLAUDE.md
-protocols/
+protocols/*
+!protocols/sample.toml

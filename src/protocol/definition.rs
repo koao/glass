@@ -80,9 +80,6 @@ impl FrameRule {
 pub struct MessageDef {
     pub id: String,
     pub title: String,
-    /// "send" or "receive"
-    #[serde(default)]
-    pub direction: Option<String>,
     /// HEX文字列表現に対する正規表現
     #[allow(dead_code)]
     pub pattern: String,

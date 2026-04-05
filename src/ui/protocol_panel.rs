@@ -16,15 +16,6 @@ const ROW_HEIGHT: f32 = 28.0;
 const FONT: fn() -> egui::FontId = || egui::FontId::proportional(15.0);
 const MONO_FONT: fn() -> egui::FontId = || egui::FontId::monospace(13.0);
 
-/// 方向アイコン・色・ラベルを取得
-fn direction_info(dir: &str, t: &crate::i18n::Texts) -> (&'static str, egui::Color32, &'static str) {
-    match dir {
-        "send" => (regular::ARROW_RIGHT, theme::PROTOCOL_SEND, t.protocol_send),
-        "receive" => (regular::ARROW_LEFT, theme::PROTOCOL_RECV, t.protocol_recv),
-        _ => (regular::MINUS, theme::TEXT_MUTED, ""),
-    }
-}
-
 /// IDLE テキストを描画
 fn paint_idle_text(painter: &egui::Painter, idle_ms: f64, x: f32, center_y: f32) {
     let text = format!("IDLE {}ms", idle_ms as u64);
@@ -387,16 +378,6 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
                     Some(def_idx) => {
                         let msg_def = &proto.messages[def_idx];
 
-                        // 方向
-                        if let Some(dir) = &msg_def.direction {
-                            let (icon, color, label) = direction_info(dir, app.t);
-                            let dir_text = format!("{} {}", icon, label);
-                            let g = painter.layout_no_wrap(dir_text, font.clone(), color);
-                            let w = g.rect.width();
-                            painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, color);
-                            cur_x += w + 8.0;
-                        }
-
                         // タイトル
                         let title = &msg_def.title;
                         let title_color = msg_def.parsed_color.unwrap_or(egui::Color32::WHITE);
@@ -601,11 +582,6 @@ fn measure_message_width(ui: &Ui, app: &GlassApp, match_idx: usize) -> f32 {
     match matched.message_def_idx {
         Some(def_idx) => {
             let msg_def = &proto.messages[def_idx];
-            if let Some(dir) = &msg_def.direction {
-                let (icon, _, label) = direction_info(dir, app.t);
-                let dir_text = format!("{} {}", icon, label);
-                w += painter.layout_no_wrap(dir_text, font.clone(), egui::Color32::WHITE).rect.width() + 8.0;
-            }
             w += painter.layout_no_wrap(msg_def.title.clone(), font.clone(), egui::Color32::WHITE).rect.width() + 8.0;
             for field in msg_def.fields.iter().filter(|f| f.inline) {
                 let ascii = extract_ascii(&matched.frame.bytes, field.offset, field.size);
@@ -661,14 +637,6 @@ fn paint_inline_message(
     match matched.message_def_idx {
         Some(def_idx) => {
             let msg_def = &proto.messages[def_idx];
-            if let Some(dir) = &msg_def.direction {
-                let (icon, color, label) = direction_info(dir, app.t);
-                let dir_text = format!("{} {}", icon, label);
-                let g = painter.layout_no_wrap(dir_text, font.clone(), color);
-                let w = g.rect.width();
-                painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, color);
-                cur_x += w + 8.0;
-            }
             let title_color = msg_def.parsed_color.unwrap_or(egui::Color32::WHITE);
             let g = painter.layout_no_wrap(msg_def.title.clone(), font.clone(), title_color);
             let w = g.rect.width();

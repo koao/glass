@@ -48,10 +48,6 @@ pub const PILL_BG_RUNNING: Color32 = Color32::from_rgb(30, 70, 50);
 pub const PILL_BG_PAUSED: Color32 = Color32::from_rgb(70, 55, 30);
 
 // --- プロトコルパネル ---
-/// 送信方向ラベル（ブルー）
-pub const PROTOCOL_SEND: Color32 = Color32::from_rgb(120, 160, 220);
-/// 受信方向ラベル（グリーン）
-pub const PROTOCOL_RECV: Color32 = Color32::from_rgb(120, 200, 140);
 /// IDLE表示（ミュート）
 pub const PROTOCOL_IDLE: Color32 = Color32::from_rgb(136, 144, 160);
 /// 未マッチフレーム（グレー）

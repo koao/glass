@@ -1,0 +1,351 @@
+# Sample Protocol Definition
+#
+# Frame structure:
+#   ENQ(05) + Address(3) = 4 bytes fixed
+#   EOT(04) + Address(3) = 4 bytes fixed
+#   ACK(06) + Address(3) = 4 bytes fixed
+#   NAK(15) + Address(3) = 4 bytes fixed
+#   STX(02) + Dest(3) + Src(3) + Data(n) + ETX(03) + BCC(2)
+#
+# Data field:
+#   Command code (2-byte ASCII) + fields
+
+[protocol]
+title = "Sample Protocol"
+frame_idle_threshold_ms = 5.0
+
+# Frame rules
+[[protocol.frame_rules]]
+trigger = "02"       # STX -> ETX + BCC (2 bytes)
+end = "03"
+end_extra = 2
+max_length = 256
+
+[[protocol.frame_rules]]
+trigger = "05"       # ENQ + Address (3 bytes) = 4 bytes fixed
+length = 4
+
+[[protocol.frame_rules]]
+trigger = "04"       # EOT + Address (3 bytes) = 4 bytes fixed
+length = 4
+
+[[protocol.frame_rules]]
+trigger = "06"       # ACK + Address (3 bytes) = 4 bytes fixed
+length = 4
+
+[[protocol.frame_rules]]
+trigger = "15"       # NAK + Address (3 bytes) = 4 bytes fixed
+length = 4
+
+# ============================================================
+# Control commands (fixed-length frames)
+# ============================================================
+
+[[messages]]
+id = "enq"
+title = "ENQ"
+color = "78A0DC"
+pattern = "^05[0-9A-F]{6}$"
+
+[[messages.fields]]
+name = "Addr"
+offset = 1
+size = 3
+inline = true
+
+[[messages]]
+id = "eot"
+title = "EOT"
+color = "88909F"
+pattern = "^04[0-9A-F]{6}$"
+
+[[messages.fields]]
+name = "Addr"
+offset = 1
+size = 3
+inline = true
+
+[[messages]]
+id = "ack"
+title = "ACK"
+color = "78C88C"
+pattern = "^06[0-9A-F]{6}$"
+
+[[messages.fields]]
+name = "Addr"
+offset = 1
+size = 3
+inline = true
+
+[[messages]]
+id = "nak"
+title = "NAK"
+color = "D47070"
+pattern = "^15[0-9A-F]{6}$"
+
+[[messages.fields]]
+name = "Addr"
+offset = 1
+size = 3
+inline = true
+
+# ============================================================
+# Data messages (STX...ETX+BCC)
+# STX + Dest(3) + Src(3) + Cmd(2) + Data + ETX + BCC(2)
+# ============================================================
+
+[[messages]]
+id = "msg_a"
+title = "Message A"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3331[0-9A-F]{8}03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Mode"
+offset = 9
+size = 1
+description = "0=Normal, 1=ModeA, 2=ModeB, 3=ModeC, 4=ModeD"
+
+[[messages.fields]]
+name = "Status"
+offset = 10
+size = 1
+description = "0=OFF, 1=ON"
+
+[[messages.fields]]
+name = "Count"
+offset = 11
+size = 2
+
+[[messages]]
+id = "msg_b"
+title = "Message B"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}333203[0-9A-F]{4}$|^02[0-9A-F]{6}[0-9A-F]{6}3332[0-9A-F]+03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Offset"
+offset = 9
+size = 2
+
+[[messages]]
+id = "msg_c"
+title = "Message C"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3333[0-9A-F]{22}03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Type"
+offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Index"
+offset = 10
+size = 1
+
+[[messages.fields]]
+name = "Group"
+offset = 11
+size = 1
+
+[[messages.fields]]
+name = "Code"
+offset = 12
+size = 8
+
+[[messages]]
+id = "msg_d"
+title = "Message D"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3334[0-9A-F]{22}03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Type"
+offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Index"
+offset = 10
+size = 1
+
+[[messages.fields]]
+name = "Group"
+offset = 11
+size = 1
+
+[[messages.fields]]
+name = "Code"
+offset = 12
+size = 8
+
+[[messages]]
+id = "msg_e"
+title = "Message E"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3335[0-9A-F]+03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "ID"
+offset = 9
+size = 6
+
+[[messages]]
+id = "msg_f"
+title = "Message F"
+color = "78A0DC"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3336[0-9A-F]{28}03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Year"
+offset = 9
+size = 4
+
+[[messages.fields]]
+name = "Month"
+offset = 13
+size = 2
+
+[[messages.fields]]
+name = "Day"
+offset = 15
+size = 2
+
+[[messages.fields]]
+name = "Hour"
+offset = 17
+size = 2
+
+[[messages.fields]]
+name = "Min"
+offset = 19
+size = 2
+
+[[messages.fields]]
+name = "Sec"
+offset = 21
+size = 2
+
+[[messages]]
+id = "msg_g"
+title = "Message G"
+color = "78A0DC"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3831[0-9A-F]{14}03[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Target"
+offset = 9
+size = 3
+
+[[messages.fields]]
+name = "Channel"
+offset = 12
+size = 3
+
+[[messages.fields]]
+name = "Value"
+offset = 15
+size = 1
+
+[[messages]]
+id = "msg_h"
+title = "Message H"
+color = "78A0DC"
+pattern = "^02[0-9A-F]{6}[0-9A-F]{6}383203[0-9A-F]{4}$"
+
+[[messages.fields]]
+name = "Dest"
+offset = 1
+size = 3
+inline = true
+
+[[messages.fields]]
+name = "Src"
+offset = 4
+size = 3
+inline = true
