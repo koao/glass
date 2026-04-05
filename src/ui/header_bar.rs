@@ -74,6 +74,34 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                 app.clear_all();
             }
 
+            // スクリーンショット
+            if ui
+                .button(regular::CAMERA)
+                .on_hover_text(app.t.screenshot)
+                .clicked()
+            {
+                app.ui_state.screenshot_requested = true;
+            }
+
+            // ファイル保存（停止中かつデータあり）
+            let has_data = app.buffer.byte_count() > 0;
+            if ui
+                .add_enabled(is_stopped && has_data, egui::Button::new(regular::FLOPPY_DISK))
+                .on_hover_text(if is_stopped { app.t.save_file } else { app.t.save_file_stopped_only })
+                .clicked()
+            {
+                app.save_to_file();
+            }
+
+            // ファイル読み込み（停止中のみ）
+            if ui
+                .add_enabled(is_stopped, egui::Button::new(regular::FOLDER_OPEN))
+                .on_hover_text(if is_stopped { app.t.load_file } else { app.t.load_file_stopped_only })
+                .clicked()
+            {
+                app.load_from_file();
+            }
+
             // 検索トグル
             if ui
                 .button(regular::MAGNIFYING_GLASS)

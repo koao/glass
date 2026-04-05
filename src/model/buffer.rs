@@ -55,4 +55,18 @@ impl MonitorBuffer {
     pub fn increment_errors(&mut self) {
         self.error_count += 1;
     }
+
+    /// 外部エントリ一括読み込み（ファイル読み込み用、上限トリミング済み）
+    pub fn load_entries(&mut self, mut entries: Vec<DataEntry>) {
+        self.clear();
+        if entries.len() > MAX_ENTRIES {
+            let trim = entries.len() - MAX_ENTRIES;
+            entries.drain(..trim);
+        }
+        self.byte_count = entries
+            .iter()
+            .filter(|e| matches!(e, DataEntry::Byte(..)))
+            .count();
+        self.entries = entries;
+    }
 }

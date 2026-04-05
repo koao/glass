@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender};
@@ -6,6 +7,7 @@ use eframe::egui;
 use crate::i18n::{Language, Texts};
 use crate::model::buffer::MonitorBuffer;
 use crate::model::entry::DataEntry;
+use crate::model::file_format::GlassFile;
 use crate::model::grid::DisplayBuffer;
 use crate::serial::config::SerialConfig;
 use crate::serial::worker;
@@ -45,6 +47,10 @@ pub struct UiState {
     pub show_search_help: bool,
     /// 設定ウィンドウの選択タブ
     pub settings_tab: SettingsTab,
+    /// スクリーンショット要求フラグ（ボタン押下時にtrue）
+    pub screenshot_requested: bool,
+    /// スクリーンショット結果待ちフラグ（ViewportCommand送信後にtrue）
+    pub screenshot_pending: bool,
 }
 
 /// アプリケーション本体
@@ -113,6 +119,8 @@ impl GlassApp {
                 show_search_bar: settings.show_search_bar,
                 show_search_help: false,
                 settings_tab: SettingsTab::Serial,
+                screenshot_requested: false,
+                screenshot_pending: false,
             },
             lang,
             t: lang.texts(),
@@ -247,6 +255,71 @@ impl GlassApp {
         self.search = SearchState::new();
     }
 
+    /// バッファをファイルに保存
+    pub fn save_to_file(&mut self) {
+        let path = rfd::FileDialog::new()
+            .add_filter("Glass Monitor", &["glm"])
+            .set_file_name("monitor.glm")
+            .save_file();
+        if let Some(path) = path {
+            let glass_file = GlassFile::from_entries(self.buffer.entries());
+            match serde_json::to_string_pretty(&glass_file) {
+                Ok(json) => {
+                    if let Err(e) = std::fs::write(&path, json) {
+                        self.last_error = Some(format!("{}: {}", self.t.err_save_file, e));
+                    }
+                }
+                Err(e) => {
+                    self.last_error = Some(format!("{}: {}", self.t.err_save_file, e));
+                }
+            }
+        }
+    }
+
+    /// ファイルからバッファに読み込み
+    pub fn load_from_file(&mut self) {
+        let path = rfd::FileDialog::new()
+            .add_filter("Glass Monitor", &["glm"])
+            .pick_file();
+        if let Some(path) = path {
+            match std::fs::read_to_string(&path) {
+                Ok(content) => match serde_json::from_str::<GlassFile>(&content) {
+                    Ok(glass_file) => {
+                        let entries = glass_file.to_entries();
+                        self.buffer.load_entries(entries);
+                        self.display_buffer
+                            .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
+                        self.search = SearchState::new();
+                        self.last_error = None;
+                    }
+                    Err(e) => {
+                        self.last_error = Some(format!("{}: {}", self.t.err_load_file, e));
+                    }
+                },
+                Err(e) => {
+                    self.last_error = Some(format!("{}: {}", self.t.err_load_file, e));
+                }
+            }
+        }
+    }
+
+    /// スクリーンショットをPNG保存
+    fn save_screenshot(&mut self, image: &Arc<egui::ColorImage>) {
+        let path = rfd::FileDialog::new()
+            .add_filter("PNG", &["png"])
+            .set_file_name("glass_screenshot.png")
+            .save_file();
+        if let Some(path) = path {
+            let [w, h] = image.size;
+            let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
+            if let Some(img) = image::RgbaImage::from_raw(w as u32, h as u32, rgba) {
+                if let Err(e) = img.save(&path) {
+                    self.last_error = Some(format!("{}: {}", self.t.err_screenshot, e));
+                }
+            }
+        }
+    }
+
     pub fn save_settings(&self) {
         let settings = AppSettings {
             port_name: self.config.port_name.clone(),
@@ -269,6 +342,23 @@ impl GlassApp {
 
 impl eframe::App for GlassApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // スクリーンショット結果の受信（要求後のフレームのみ検査）
+        if self.ui_state.screenshot_pending {
+            let screenshot_image = ui.input(|i| {
+                i.events.iter().find_map(|e| {
+                    if let egui::Event::Screenshot { image, .. } = e {
+                        Some(image.clone())
+                    } else {
+                        None
+                    }
+                })
+            });
+            if let Some(image) = screenshot_image {
+                self.ui_state.screenshot_pending = false;
+                self.save_screenshot(&image);
+            }
+        }
+
         // チャネルからデータ受信
         self.drain_channel();
 
@@ -318,6 +408,14 @@ impl eframe::App for GlassApp {
         // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
         ui::search_bar::draw_help(ui, self);
+
+        // スクリーンショット要求の送信
+        if self.ui_state.screenshot_requested {
+            self.ui_state.screenshot_requested = false;
+            self.ui_state.screenshot_pending = true;
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+        }
 
         // Running状態では継続的に再描画
         if self.state == MonitorState::Running {

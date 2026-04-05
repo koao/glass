@@ -44,6 +44,11 @@ pub struct Texts {
     pub settings_stopped_only: &'static str,
     pub clear: &'static str,
     pub search_shortcut: &'static str,
+    pub save_file: &'static str,
+    pub save_file_stopped_only: &'static str,
+    pub load_file: &'static str,
+    pub load_file_stopped_only: &'static str,
+    pub screenshot: &'static str,
 
     // -- status_bar --
     pub received: &'static str,
@@ -93,6 +98,9 @@ pub struct Texts {
     // -- app エラー --
     pub err_no_port: &'static str,
     pub err_port_open: &'static str,
+    pub err_save_file: &'static str,
+    pub err_load_file: &'static str,
+    pub err_screenshot: &'static str,
 }
 
 const JA: Texts = Texts {
@@ -105,6 +113,11 @@ const JA: Texts = Texts {
     settings_stopped_only: "設定 (停止中のみ)",
     clear: "クリア",
     search_shortcut: "検索 (Ctrl+F)",
+    save_file: "ファイルに保存",
+    save_file_stopped_only: "ファイルに保存 (停止中のみ)",
+    load_file: "ファイルから読み込み",
+    load_file_stopped_only: "ファイルから読み込み (停止中のみ)",
+    screenshot: "スクリーンショット",
 
     // status_bar
     received: "受信",
@@ -154,6 +167,9 @@ const JA: Texts = Texts {
     // app エラー
     err_no_port: "COMポートを選択してください",
     err_port_open: "ポートオープン失敗",
+    err_save_file: "ファイル保存失敗",
+    err_load_file: "ファイル読み込み失敗",
+    err_screenshot: "スクリーンショット保存失敗",
 };
 
 const EN: Texts = Texts {
@@ -166,6 +182,11 @@ const EN: Texts = Texts {
     settings_stopped_only: "Settings (stopped only)",
     clear: "Clear",
     search_shortcut: "Search (Ctrl+F)",
+    save_file: "Save to file",
+    save_file_stopped_only: "Save to file (stopped only)",
+    load_file: "Load from file",
+    load_file_stopped_only: "Load from file (stopped only)",
+    screenshot: "Screenshot",
 
     // status_bar
     received: "Received",
@@ -215,4 +236,7 @@ const EN: Texts = Texts {
     // app エラー
     err_no_port: "Please select a COM port",
     err_port_open: "Failed to open port",
+    err_save_file: "Failed to save file",
+    err_load_file: "Failed to load file",
+    err_screenshot: "Failed to save screenshot",
 };
