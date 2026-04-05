@@ -30,13 +30,14 @@ impl GlassFile {
         let mut t0: Option<Instant> = None;
         let saved = entries
             .iter()
-            .map(|e| match e {
+            .filter_map(|e| match e {
                 DataEntry::Byte(val, ts) => {
                     let base = *t0.get_or_insert(*ts);
                     let rel = ts.duration_since(base).as_micros() as u64;
-                    SavedEntry::Byte(*val, rel)
+                    Some(SavedEntry::Byte(*val, rel))
                 }
-                DataEntry::Idle(ms) => SavedEntry::Idle(*ms),
+                DataEntry::Idle(ms) => Some(SavedEntry::Idle(*ms)),
+                DataEntry::Error => None,
             })
             .collect();
 

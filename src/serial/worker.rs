@@ -262,6 +262,12 @@ mod win32_receiver {
                 let mut errors: u32 = 0;
                 let mut comstat = MaybeUninit::<COMSTAT>::uninit();
                 unsafe { ClearCommError(handle, &mut errors, comstat.as_mut_ptr()) };
+
+                // 通信エラーをチャネルに送信
+                if errors & (CE_FRAME | CE_OVERRUN | CE_RXPARITY) != 0 {
+                    let _ = sender.send(DataEntry::Error);
+                }
+
                 let available = unsafe { comstat.assume_init().cbInQue };
 
                 if available > 0 {

@@ -59,6 +59,7 @@ impl DisplayBuffer {
                     self.entry_indices.push(entry_idx);
                 }
             }
+            DataEntry::Error => {}
         }
     }
 

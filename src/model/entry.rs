@@ -7,4 +7,6 @@ pub enum DataEntry {
     Byte(u8, Instant),
     /// アイドル検出 (持続時間ms)
     Idle(f64),
+    /// 通信エラー（フレーミング、オーバーラン、パリティ等）
+    Error,
 }

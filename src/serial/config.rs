@@ -58,6 +58,7 @@ impl ParitySetting {
         }
     }
 
+    #[cfg(not(target_os = "windows"))]
     pub fn to_serialport(&self) -> serialport::Parity {
         match self {
             Self::None => serialport::Parity::None,
@@ -91,6 +92,7 @@ impl StopBitsSetting {
         }
     }
 
+    #[cfg(not(target_os = "windows"))]
     pub fn to_serialport(&self) -> serialport::StopBits {
         match self {
             Self::One => serialport::StopBits::One,

@@ -23,8 +23,10 @@ impl MonitorBuffer {
 
     /// エントリを追加（バッファ上限管理あり）
     pub fn push(&mut self, entry: DataEntry) {
-        if matches!(&entry, DataEntry::Byte(..)) {
-            self.byte_count += 1;
+        match &entry {
+            DataEntry::Byte(..) => self.byte_count += 1,
+            DataEntry::Error => self.error_count += 1,
+            _ => {}
         }
         self.entries.push(entry);
         // 上限超過時に古いエントリを削除
@@ -50,10 +52,6 @@ impl MonitorBuffer {
 
     pub fn error_count(&self) -> usize {
         self.error_count
-    }
-
-    pub fn increment_errors(&mut self) {
-        self.error_count += 1;
     }
 
     /// 外部エントリ一括読み込み（ファイル読み込み用、上限トリミング済み）

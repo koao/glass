@@ -4,6 +4,9 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::{Receiver, Sender};
 use eframe::egui;
 
+/// ウィンドウ最小サイズ
+pub const MIN_WINDOW_SIZE: [f32; 2] = [800.0, 400.0];
+
 use crate::i18n::{Language, Texts};
 use crate::model::buffer::MonitorBuffer;
 use crate::model::entry::DataEntry;
@@ -51,6 +54,8 @@ pub struct UiState {
     pub screenshot_requested: bool,
     /// スクリーンショット結果待ちフラグ（ViewportCommand送信後にtrue）
     pub screenshot_pending: bool,
+    /// 最小ウィンドウサイズ適用済みフラグ
+    pub min_size_applied: bool,
 }
 
 /// アプリケーション本体
@@ -121,6 +126,7 @@ impl GlassApp {
                 settings_tab: SettingsTab::Serial,
                 screenshot_requested: false,
                 screenshot_pending: false,
+                min_size_applied: false,
             },
             lang,
             t: lang.texts(),
@@ -342,6 +348,14 @@ impl GlassApp {
 
 impl eframe::App for GlassApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // ウィンドウ最小サイズを設定（NativeOptions だけでは効かないため初回のみ送信）
+        if !self.ui_state.min_size_applied {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::MinInnerSize(
+                egui::vec2(MIN_WINDOW_SIZE[0], MIN_WINDOW_SIZE[1]),
+            ));
+            self.ui_state.min_size_applied = true;
+        }
+
         // スクリーンショット結果の受信（要求後のフレームのみ検査）
         if self.ui_state.screenshot_pending {
             let screenshot_image = ui.input(|i| {
