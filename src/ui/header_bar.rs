@@ -1,7 +1,7 @@
 use egui::Ui;
 use egui_phosphor::regular;
 
-use crate::app::{DisplayMode, GlassApp, MonitorState};
+use crate::app::{DisplayMode, GlassApp, MonitorState, ViewTab};
 use crate::ui::theme;
 
 /// ヘッダーバー描画（安定レイアウト: 全ボタン常時表示）
@@ -48,9 +48,18 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         ui.separator();
 
-        // 表示モード切替
-        ui.selectable_value(&mut app.display_mode, DisplayMode::Hex, "HEX");
-        ui.selectable_value(&mut app.display_mode, DisplayMode::Ascii, "ASCII");
+        // 表示タブ切替
+        ui.selectable_value(&mut app.active_tab, ViewTab::Monitor, app.t.tab_monitor);
+        ui.selectable_value(&mut app.active_tab, ViewTab::Protocol, app.t.tab_protocol);
+
+        ui.separator();
+
+        // 表示モード切替（モニタタブ時のみ有効）
+        let is_monitor = app.active_tab == ViewTab::Monitor;
+        ui.add_enabled_ui(is_monitor, |ui| {
+            ui.selectable_value(&mut app.display_mode, DisplayMode::Hex, "HEX");
+            ui.selectable_value(&mut app.display_mode, DisplayMode::Ascii, "ASCII");
+        });
 
         // エラー表示
         if let Some(err) = &app.last_error {

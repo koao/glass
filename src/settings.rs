@@ -21,6 +21,9 @@ pub struct AppSettings {
     pub show_search_bar: bool,
     #[serde(default)]
     pub language: Language,
+    /// アクティブタブ ("monitor" or "protocol")
+    #[serde(default)]
+    pub active_tab: String,
 }
 
 impl Default for AppSettings {
@@ -36,6 +39,7 @@ impl Default for AppSettings {
             show_settings_window: false,
             show_search_bar: false,
             language: Language::default(),
+            active_tab: String::new(),
         }
     }
 }

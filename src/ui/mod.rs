@@ -3,5 +3,6 @@ pub mod header_bar;
 pub mod settings_window;
 pub mod search_bar;
 pub mod monitor_view;
+pub mod protocol_panel;
 pub mod status_bar;
 pub mod search;

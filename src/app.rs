@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -12,6 +14,8 @@ use crate::model::buffer::MonitorBuffer;
 use crate::model::entry::DataEntry;
 use crate::model::file_format::GlassFile;
 use crate::model::grid::DisplayBuffer;
+use crate::protocol::definition::{self, ProtocolFile};
+use crate::protocol::engine::{ProtocolEngine, ProtocolState};
 use crate::serial::config::SerialConfig;
 use crate::serial::worker;
 use crate::settings::AppSettings;
@@ -40,6 +44,13 @@ pub enum SettingsTab {
     Display,
 }
 
+/// メイン表示タブ
+#[derive(Clone, Debug, PartialEq)]
+pub enum ViewTab {
+    Monitor,
+    Protocol,
+}
+
 /// UI表示状態
 pub struct UiState {
     /// 設定ウィンドウ表示フラグ
@@ -56,6 +67,16 @@ pub struct UiState {
     pub screenshot_pending: bool,
     /// 最小ウィンドウサイズ適用済みフラグ
     pub min_size_applied: bool,
+    /// プロトコルパネルで展開中のメッセージインデックス
+    pub protocol_expanded: HashSet<usize>,
+    /// 選択中のプロトコル定義インデックス
+    pub selected_protocol_idx: Option<usize>,
+    /// 非表示にするメッセージ定義ID（フィルタ）
+    pub protocol_hidden_ids: HashSet<String>,
+    /// IDLE表示フラグ
+    pub protocol_show_idle: bool,
+    /// フィルタ設定ウィンドウ表示フラグ
+    pub show_protocol_filter: bool,
 }
 
 /// アプリケーション本体
@@ -77,6 +98,16 @@ pub struct GlassApp {
     pub ui_state: UiState,
     pub lang: Language,
     pub t: &'static Texts,
+    /// アクティブ表示タブ
+    pub active_tab: ViewTab,
+    /// プロトコルエンジン
+    pub protocol_engine: Option<ProtocolEngine>,
+    /// プロトコル状態（マッチ結果）
+    pub protocol_state: ProtocolState,
+    /// 読み込み済みプロトコル定義
+    pub loaded_protocol: Option<ProtocolFile>,
+    /// 利用可能な定義ファイル一覧 (パス, タイトル)
+    pub protocol_files: Vec<(PathBuf, String)>,
 }
 
 impl GlassApp {
@@ -98,6 +129,26 @@ impl GlassApp {
             DisplayMode::Hex
         };
         let lang = settings.language;
+
+        // プロトコル定義をスキャン・読み込み
+        let protocols_dir = definition::protocols_dir();
+        let protocol_files = definition::scan_protocols(&protocols_dir);
+        let (loaded_protocol, protocol_engine) = if !protocol_files.is_empty() {
+            match definition::load_protocol(&protocol_files[0].0) {
+                Ok(proto) => {
+                    let engine = ProtocolEngine::new(&proto);
+                    (Some(proto), Some(engine))
+                }
+                Err(_) => (None, None),
+            }
+        } else {
+            (None, None)
+        };
+        let active_tab = if settings.active_tab == "protocol" {
+            ViewTab::Protocol
+        } else {
+            ViewTab::Monitor
+        };
 
         let mut app = Self {
             config: SerialConfig {
@@ -127,9 +178,19 @@ impl GlassApp {
                 screenshot_requested: false,
                 screenshot_pending: false,
                 min_size_applied: false,
+                protocol_expanded: HashSet::new(),
+                selected_protocol_idx: if protocol_files.is_empty() { None } else { Some(0) },
+                protocol_hidden_ids: HashSet::new(),
+                protocol_show_idle: true,
+                show_protocol_filter: false,
             },
             lang,
             t: lang.texts(),
+            active_tab,
+            protocol_engine,
+            protocol_state: ProtocolState::new(),
+            loaded_protocol,
+            protocol_files,
         };
         app.refresh_ports();
         app
@@ -224,6 +285,9 @@ impl GlassApp {
         // 一時停止中のデータを表示バッファに同期
         self.display_buffer
             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
+        if let Some(engine) = &self.protocol_engine {
+            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+        }
         self.state = MonitorState::Running;
     }
 
@@ -239,6 +303,10 @@ impl GlassApp {
         // 停止時にバッファを同期（スクロール表示用）
         self.display_buffer
             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
+        if let Some(engine) = &self.protocol_engine {
+            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+            self.protocol_state.flush(engine);
+        }
     }
 
     /// チャネルからデータをドレイン
@@ -257,6 +325,8 @@ impl GlassApp {
     pub fn clear_all(&mut self) {
         self.buffer.clear();
         self.display_buffer.clear();
+        self.protocol_state.clear();
+        self.ui_state.protocol_expanded.clear();
         self.last_byte_time = None;
         self.search = SearchState::new();
     }
@@ -295,6 +365,11 @@ impl GlassApp {
                         self.buffer.load_entries(entries);
                         self.display_buffer
                             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
+                        self.protocol_state.clear();
+                        if let Some(engine) = &self.protocol_engine {
+                            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+                            self.protocol_state.flush(engine);
+                        }
                         self.search = SearchState::new();
                         self.last_error = None;
                     }
@@ -341,6 +416,10 @@ impl GlassApp {
             show_settings_window: self.ui_state.show_settings_window,
             show_search_bar: self.ui_state.show_search_bar,
             language: self.lang,
+            active_tab: match self.active_tab {
+                ViewTab::Protocol => "protocol".to_string(),
+                _ => "monitor".to_string(),
+            },
         };
         settings.save();
     }
@@ -376,6 +455,11 @@ impl eframe::App for GlassApp {
         // チャネルからデータ受信
         self.drain_channel();
 
+        // プロトコルエンジンの増分同期
+        if let Some(engine) = &self.protocol_engine {
+            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+        }
+
         // 受信中の検索自動更新
         if self.state == MonitorState::Running && self.ui_state.show_search_bar {
             let entries = self.buffer.entries();
@@ -410,13 +494,20 @@ impl eframe::App for GlassApp {
             ui::status_bar::draw(ui, self);
         });
 
-        // メインモニタ領域（検索バー含む）
+        // メインコンテンツ領域（タブ切り替え）
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            if self.ui_state.show_search_bar {
-                ui::search_bar::draw(ui, self);
-                ui.separator();
+            match self.active_tab {
+                ViewTab::Monitor => {
+                    if self.ui_state.show_search_bar {
+                        ui::search_bar::draw(ui, self);
+                        ui.separator();
+                    }
+                    ui::monitor_view::draw(ui, self);
+                }
+                ViewTab::Protocol => {
+                    ui::protocol_panel::draw(ui, self);
+                }
             }
-            ui::monitor_view::draw(ui, self);
         });
 
         // フローティングウィンドウ

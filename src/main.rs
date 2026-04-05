@@ -3,6 +3,7 @@
 mod app;
 mod i18n;
 mod model;
+mod protocol;
 mod serial;
 mod settings;
 mod ui;

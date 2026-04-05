@@ -46,3 +46,17 @@ pub const PILL_BG_STOPPED: Color32 = Color32::from_rgb(60, 63, 80);
 pub const PILL_BG_RUNNING: Color32 = Color32::from_rgb(30, 70, 50);
 /// ステータスピル背景（一時停止）
 pub const PILL_BG_PAUSED: Color32 = Color32::from_rgb(70, 55, 30);
+
+// --- プロトコルパネル ---
+/// 送信方向ラベル（ブルー）
+pub const PROTOCOL_SEND: Color32 = Color32::from_rgb(120, 160, 220);
+/// 受信方向ラベル（グリーン）
+pub const PROTOCOL_RECV: Color32 = Color32::from_rgb(120, 200, 140);
+/// IDLE表示（ミュート）
+pub const PROTOCOL_IDLE: Color32 = Color32::from_rgb(136, 144, 160);
+/// 未マッチフレーム（グレー）
+pub const PROTOCOL_UNMATCHED: Color32 = Color32::from_rgb(100, 104, 116);
+/// プロトコルパネル行背景（偶数行）
+pub const PROTOCOL_ROW_EVEN: Color32 = Color32::from_rgb(30, 32, 44);
+/// プロトコルパネル行背景（奇数行）
+pub const PROTOCOL_ROW_ODD: Color32 = Color32::from_rgb(26, 27, 38);

@@ -95,6 +95,25 @@ pub struct Texts {
     // -- monitor_view --
     pub no_data: &'static str,
 
+    // -- tab --
+    pub tab_monitor: &'static str,
+    pub tab_protocol: &'static str,
+
+    // -- protocol_panel --
+    pub protocol_reload: &'static str,
+    pub protocol_no_file: &'static str,
+    pub protocol_no_match: &'static str,
+    pub protocol_send: &'static str,
+    pub protocol_recv: &'static str,
+    pub protocol_raw: &'static str,
+    pub protocol_fields: &'static str,
+    pub protocol_unmatched: &'static str,
+    pub protocol_filter: &'static str,
+    pub protocol_filter_title: &'static str,
+    pub protocol_show_idle: &'static str,
+    pub protocol_show_all: &'static str,
+    pub protocol_hide_all: &'static str,
+
     // -- app エラー --
     pub err_no_port: &'static str,
     pub err_port_open: &'static str,
@@ -164,6 +183,25 @@ const JA: Texts = Texts {
     // monitor_view
     no_data: "データなし — COMポートを選択して開始してください",
 
+    // tab
+    tab_monitor: "モニタ",
+    tab_protocol: "プロトコル",
+
+    // protocol_panel
+    protocol_reload: "再読み込み",
+    protocol_no_file: "定義ファイルなし — protocols/ に .toml を配置してください",
+    protocol_no_match: "一致なし",
+    protocol_send: "送信",
+    protocol_recv: "受信",
+    protocol_raw: "生データ",
+    protocol_fields: "フィールド",
+    protocol_unmatched: "不明",
+    protocol_filter: "フィルタ",
+    protocol_filter_title: "表示フィルタ",
+    protocol_show_idle: "IDLE表示",
+    protocol_show_all: "全て表示",
+    protocol_hide_all: "全て非表示",
+
     // app エラー
     err_no_port: "COMポートを選択してください",
     err_port_open: "ポートオープン失敗",
@@ -232,6 +270,25 @@ const EN: Texts = Texts {
 
     // monitor_view
     no_data: "No data — select a COM port and start",
+
+    // tab
+    tab_monitor: "Monitor",
+    tab_protocol: "Protocol",
+
+    // protocol_panel
+    protocol_reload: "Reload",
+    protocol_no_file: "No definition files — place .toml files in protocols/",
+    protocol_no_match: "No matches",
+    protocol_send: "Send",
+    protocol_recv: "Recv",
+    protocol_raw: "Raw data",
+    protocol_fields: "Fields",
+    protocol_unmatched: "Unknown",
+    protocol_filter: "Filter",
+    protocol_filter_title: "Display Filter",
+    protocol_show_idle: "Show IDLE",
+    protocol_show_all: "Show all",
+    protocol_hide_all: "Hide all",
 
     // app エラー
     err_no_port: "Please select a COM port",
