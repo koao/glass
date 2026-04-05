@@ -32,7 +32,7 @@ jobs:
           RUSTFLAGS: "-C target-feature=+crt-static"
 
       - name: Package
-        run: Compress-Archive -Path target/release/glass.exe -DestinationPath glass-windows-x64.zip
+        run: Compress-Archive -Path target/release/glass.exe, protocols -DestinationPath glass-windows-x64.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
