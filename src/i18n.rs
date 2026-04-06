@@ -113,6 +113,13 @@ pub struct Texts {
     pub protocol_hide_all: &'static str,
     pub protocol_mode_list: &'static str,
     pub protocol_mode_wrap: &'static str,
+    pub protocol_search_no_match: &'static str,
+    pub protocol_search_help_title: &'static str,
+    pub protocol_search_help_desc: &'static str,
+    pub protocol_search_help_and: &'static str,
+    pub protocol_search_help_or: &'static str,
+    pub protocol_search_help_hex: &'static str,
+    pub protocol_search_help_quote: &'static str,
 
     // -- app エラー --
     pub err_no_port: &'static str,
@@ -203,6 +210,13 @@ const JA: Texts = Texts {
     protocol_hide_all: "全て非表示",
     protocol_mode_list: "リスト表示に切替",
     protocol_mode_wrap: "ラップ表示に切替",
+    protocol_search_no_match: "一致なし",
+    protocol_search_help_title: "プロトコル検索ヘルプ",
+    protocol_search_help_desc: "タイトル・フィールド名:値・HEXダンプを検索します。",
+    protocol_search_help_and: "AND — 両方を含む（スペース区切りも同様）",
+    protocol_search_help_or: "OR — いずれかを含む",
+    protocol_search_help_hex: "$XX — HEXバイトパターン（例: $02$03）",
+    protocol_search_help_quote: "\"...\" — スペースを含む語をまとめる",
 
     // app エラー
     err_no_port: "COMポートを選択してください",
@@ -293,6 +307,13 @@ const EN: Texts = Texts {
     protocol_hide_all: "Hide all",
     protocol_mode_list: "Switch to List",
     protocol_mode_wrap: "Switch to Wrap",
+    protocol_search_no_match: "No match",
+    protocol_search_help_title: "Protocol Search Help",
+    protocol_search_help_desc: "Searches title, field name:value, and HEX dump.",
+    protocol_search_help_and: "AND — contains both (space also works)",
+    protocol_search_help_or: "OR — contains either",
+    protocol_search_help_hex: "$XX — HEX byte pattern (e.g. $02$03)",
+    protocol_search_help_quote: "\"...\" — group words with spaces",
 
     // app エラー
     err_no_port: "Please select a COM port",

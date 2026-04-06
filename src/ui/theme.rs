@@ -66,3 +66,13 @@ pub const WRAP_PILL_BG: Color32 = Color32::from_rgb(40, 42, 58);
 pub const WRAP_PILL_BORDER: Color32 = Color32::from_rgb(56, 60, 80);
 /// ラップ表示の書き込み位置キャレット
 pub const WRAP_CURSOR_CARET: Color32 = Color32::from_rgb(120, 200, 140);
+
+// --- プロトコル検索ハイライト ---
+/// 検索ヒット行背景（List用）
+pub const PROTO_SEARCH_HIGHLIGHT_BG: Color32 = Color32::from_rgb(60, 60, 40);
+/// 現在ヒット行背景（List用）
+pub const PROTO_SEARCH_CURRENT_BG: Color32 = Color32::from_rgb(50, 80, 50);
+/// 検索ヒットpill枠線（Wrap用）
+pub const PROTO_SEARCH_HIGHLIGHT_BORDER: Color32 = Color32::from_rgb(180, 170, 80);
+/// 現在ヒットpill枠線（Wrap用）
+pub const PROTO_SEARCH_CURRENT_BORDER: Color32 = Color32::from_rgb(100, 200, 120);

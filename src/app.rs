@@ -21,6 +21,7 @@ use crate::serial::worker;
 use crate::settings::AppSettings;
 use crate::ui;
 use crate::ui::search::SearchState;
+use crate::ui::protocol_search::ProtocolSearchState;
 
 /// 表示モード
 #[derive(Clone, Debug, PartialEq)]
@@ -166,6 +167,10 @@ pub struct UiState {
     pub protocol_view_mode: ProtocolViewMode,
     /// ラップ表示の状態
     pub wrap: WrapViewState,
+    /// プロトコル検索バー表示フラグ
+    pub show_protocol_search_bar: bool,
+    /// プロトコル検索ヘルプウィンドウ表示フラグ
+    pub show_protocol_search_help: bool,
     /// エラーメッセージダイアログ
     pub error_message: Option<String>,
 }
@@ -198,6 +203,8 @@ pub struct GlassApp {
     pub loaded_protocol: Option<ProtocolFile>,
     /// 利用可能な定義ファイル一覧 (パス, タイトル)
     pub protocol_files: Vec<(PathBuf, String)>,
+    /// プロトコル検索状態
+    pub protocol_search: ProtocolSearchState,
 }
 
 impl GlassApp {
@@ -278,6 +285,8 @@ impl GlassApp {
                     ProtocolViewMode::List
                 },
                 wrap: WrapViewState::new(),
+                show_protocol_search_bar: settings.show_protocol_search_bar,
+                show_protocol_search_help: false,
                 error_message: None,
             },
             lang,
@@ -287,6 +296,7 @@ impl GlassApp {
             protocol_state: ProtocolState::new(),
             loaded_protocol,
             protocol_files,
+            protocol_search: ProtocolSearchState::new(),
         };
         app.refresh_ports();
         app
@@ -515,6 +525,7 @@ impl GlassApp {
             },
             show_settings_window: self.ui_state.show_settings_window,
             show_search_bar: self.ui_state.show_search_bar,
+            show_protocol_search_bar: self.ui_state.show_protocol_search_bar,
             language: self.lang,
             active_tab: match self.active_tab {
                 ViewTab::Protocol => "protocol".to_string(),
@@ -569,6 +580,13 @@ impl eframe::App for GlassApp {
             let entries = self.buffer.entries();
             self.search.auto_refresh(entries);
         }
+        if self.state == MonitorState::Running && self.ui_state.show_protocol_search_bar {
+            self.protocol_search.auto_refresh(
+                &self.protocol_state.matches,
+                self.loaded_protocol.as_ref(),
+                &self.ui_state.protocol_hidden_ids,
+            );
+        }
 
         // キーボードショートカット
         let (ctrl_f, escape) = ui.input(|i| {
@@ -578,14 +596,30 @@ impl eframe::App for GlassApp {
             )
         });
         if ctrl_f {
-            self.ui_state.show_search_bar = !self.ui_state.show_search_bar;
-            if !self.ui_state.show_search_bar {
-                self.search.reset();
+            match self.active_tab {
+                ViewTab::Monitor => {
+                    self.ui_state.show_search_bar = !self.ui_state.show_search_bar;
+                    if !self.ui_state.show_search_bar {
+                        self.search.reset();
+                    }
+                }
+                ViewTab::Protocol => {
+                    self.ui_state.show_protocol_search_bar = !self.ui_state.show_protocol_search_bar;
+                    if !self.ui_state.show_protocol_search_bar {
+                        self.protocol_search.reset();
+                    }
+                }
             }
         }
-        if escape && self.ui_state.show_search_bar {
-            self.ui_state.show_search_bar = false;
-            self.search.reset();
+        if escape {
+            if self.ui_state.show_search_bar && self.active_tab == ViewTab::Monitor {
+                self.ui_state.show_search_bar = false;
+                self.search.reset();
+            }
+            if self.ui_state.show_protocol_search_bar && self.active_tab == ViewTab::Protocol {
+                self.ui_state.show_protocol_search_bar = false;
+                self.protocol_search.reset();
+            }
         }
 
         // ヘッダーバー（スリム1行）

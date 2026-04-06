@@ -86,6 +86,12 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     draw_toolbar(ui, app, msg_count);
     ui.separator();
 
+    // 検索バー
+    if app.ui_state.show_protocol_search_bar {
+        draw_protocol_search_bar(ui, app);
+        ui.separator();
+    }
+
     // 定義未読込の場合
     if app.loaded_protocol.is_none() {
         ui.centered_and_justified(|ui| {
@@ -102,14 +108,18 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                 });
             } else {
                 let is_stopped = app.state == MonitorState::Stopped;
+                // スクロールターゲットを行インデックスに変換
+                let scroll_to_row = app.protocol_search.take_scroll_target().and_then(|match_idx| {
+                    rows.iter().position(|r| matches!(r, RowEntry::Message(idx, _) if *idx == match_idx))
+                });
                 if is_stopped {
                     ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            draw_match_list(ui, app, &rows, false);
+                            draw_match_list(ui, app, &rows, false, scroll_to_row);
                         });
                 } else {
-                    draw_match_list(ui, app, &rows, true);
+                    draw_match_list(ui, app, &rows, true, None);
                 }
             }
         }
@@ -118,8 +128,9 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         }
     }
 
-    // フィルタウィンドウ（フローティング）
+    // フローティングウィンドウ
     draw_filter_window(ui, app);
+    draw_protocol_search_help(ui, app);
 }
 
 /// ツールバー描画
@@ -189,7 +200,18 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
             app.ui_state.wrap.reset();
         }
 
-        // マッチ数表示（右寄せ）
+        // 検索ボタン
+        if ui.button(regular::MAGNIFYING_GLASS)
+            .on_hover_text(app.t.search_shortcut)
+            .clicked()
+        {
+            app.ui_state.show_protocol_search_bar = !app.ui_state.show_protocol_search_bar;
+            if !app.ui_state.show_protocol_search_bar {
+                app.protocol_search.reset();
+            }
+        }
+
+        // マッチ数表示（右���せ）
         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
             let total = app.protocol_state.matches.len();
             if total > 0 {
@@ -254,6 +276,142 @@ fn draw_filter_window(ui: &mut Ui, app: &mut GlassApp) {
     app.ui_state.show_protocol_filter = open;
 }
 
+/// プロトコル検索バー描画
+fn draw_protocol_search_bar(ui: &mut Ui, app: &mut GlassApp) {
+    let row_height = ui.text_style_height(&egui::TextStyle::Button)
+        + ui.spacing().button_padding.y * 2.0
+        + ui.spacing().item_spacing.y;
+    ui.allocate_ui_with_layout(
+        Vec2::new(ui.available_width(), row_height),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.label(app.t.search_label);
+
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut app.protocol_search.query)
+                    .desired_width(200.0),
+            );
+            let enter_pressed =
+                response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+            let search_clicked = ui.button(app.t.search_button).clicked() || enter_pressed;
+
+            if ui
+                .add_enabled(
+                    app.protocol_search.has_searched,
+                    egui::Button::new(format!("{} {}", regular::ERASER, app.t.search_clear)),
+                )
+                .clicked()
+            {
+                app.protocol_search.reset();
+            }
+
+            let is_stopped = app.state == MonitorState::Stopped;
+            let has_results = app.protocol_search.result_count() > 0;
+            let can_navigate = has_results && is_stopped;
+            let prev_clicked = ui
+                .add_enabled(can_navigate, egui::Button::new(regular::CARET_LEFT))
+                .clicked();
+            let next_clicked = ui
+                .add_enabled(can_navigate, egui::Button::new(regular::CARET_RIGHT))
+                .clicked();
+
+            if search_clicked {
+                app.protocol_search.search(
+                    &app.protocol_state.matches,
+                    app.loaded_protocol.as_ref(),
+                    &app.ui_state.protocol_hidden_ids,
+                );
+            } else if prev_clicked {
+                app.protocol_search.prev();
+            } else if next_clicked {
+                app.protocol_search.next();
+            }
+
+            if app.protocol_search.has_searched {
+                let count = app.protocol_search.result_count();
+                if count > 0 {
+                    ui.label(format!("{}/{}", app.protocol_search.current_index() + 1, count));
+                } else {
+                    ui.colored_label(theme::TEXT_MUTED, app.t.protocol_search_no_match);
+                }
+            }
+
+            // 右寄せ: ヘルプボタン
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(format!("{} {}", regular::INFO, app.t.help)).clicked() {
+                    app.ui_state.show_protocol_search_help = !app.ui_state.show_protocol_search_help;
+                }
+            });
+        },
+    );
+}
+
+/// プロトコル検索ヘルプウィンドウ描画
+fn draw_protocol_search_help(ui: &mut Ui, app: &mut GlassApp) {
+    if !app.ui_state.show_protocol_search_help {
+        return;
+    }
+    egui::Window::new(app.t.protocol_search_help_title)
+        .id(egui::Id::new("protocol_search_help_window"))
+        .collapsible(false)
+        .resizable(false)
+        .default_width(320.0)
+        .open(&mut app.ui_state.show_protocol_search_help)
+        .show(ui.ctx(), |ui| {
+            ui.label(app.t.protocol_search_help_desc);
+            ui.add_space(6.0);
+
+            egui::Grid::new("proto_search_help_grid")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    ui.monospace("A AND B");
+                    ui.label(app.t.protocol_search_help_and);
+                    ui.end_row();
+
+                    ui.monospace("A OR B");
+                    ui.label(app.t.protocol_search_help_or);
+                    ui.end_row();
+
+                    ui.monospace("$XX");
+                    ui.label(app.t.protocol_search_help_hex);
+                    ui.end_row();
+
+                    ui.monospace("\"A B\"");
+                    ui.label(app.t.protocol_search_help_quote);
+                    ui.end_row();
+                });
+
+            ui.add_space(6.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.colored_label(theme::TEXT_MUTED, "例 / Examples:");
+            ui.add_space(2.0);
+
+            egui::Grid::new("proto_search_help_examples")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    ui.monospace("応答 宛先:001");
+                    ui.label("→ AND (2語)");
+                    ui.end_row();
+
+                    ui.monospace("\"宛先:0 1\"");
+                    ui.label("→ 1語 (スペース含む)");
+                    ui.end_row();
+
+                    ui.monospace("MsgA OR MsgB");
+                    ui.label("→ OR");
+                    ui.end_row();
+
+                    ui.monospace("$02$03");
+                    ui.label("→ HEX bytes");
+                    ui.end_row();
+                });
+        });
+}
+
 /// 表示行の種類
 #[derive(Clone)]
 enum RowEntry {
@@ -293,7 +451,7 @@ fn build_row_entries(app: &GlassApp) -> Vec<RowEntry> {
 }
 
 /// マッチ結果一覧描画（仮想スクロール）
-fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_only: bool) {
+fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_only: bool, scroll_to_row: Option<usize>) {
     let proto = match &app.loaded_protocol {
         Some(p) => p,
         None => return,
@@ -360,9 +518,22 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
             RowEntry::Message(match_idx, even) => {
                 let matched = &app.protocol_state.matches[*match_idx];
 
-                // 行背景色
-                let bg = if *even { theme::PROTOCOL_ROW_EVEN } else { theme::PROTOCOL_ROW_ODD };
+                // 行背景色（検索ヒット時はハイライト）
+                let bg = if app.protocol_search.is_current_hit(*match_idx) {
+                    theme::PROTO_SEARCH_CURRENT_BG
+                } else if app.protocol_search.is_hit(*match_idx) {
+                    theme::PROTO_SEARCH_HIGHLIGHT_BG
+                } else if *even {
+                    theme::PROTOCOL_ROW_EVEN
+                } else {
+                    theme::PROTOCOL_ROW_ODD
+                };
                 painter.rect_filled(row_rect, 0.0, bg);
+
+                // 検索結果へのスクロール
+                if scroll_to_row == Some(row_idx) {
+                    ui.scroll_to_rect(row_rect, Some(Align::Center));
+                }
 
                 let is_expanded = expanded.contains(match_idx);
                 let text_x = row_rect.min.x + 8.0;
@@ -525,7 +696,7 @@ fn draw_expanded_detail(ui: &mut Ui, app: &GlassApp, match_idx: usize) {
 }
 
 /// バイト列からHEX文字列を抽出
-fn extract_hex(bytes: &[u8], offset: usize, size: usize) -> String {
+pub(crate) fn extract_hex(bytes: &[u8], offset: usize, size: usize) -> String {
     if offset >= bytes.len() {
         return "—".to_string();
     }
@@ -538,7 +709,7 @@ fn extract_hex(bytes: &[u8], offset: usize, size: usize) -> String {
 }
 
 /// バイト列からASCII文字列を抽出
-fn extract_ascii(bytes: &[u8], offset: usize, size: usize) -> String {
+pub(crate) fn extract_ascii(bytes: &[u8], offset: usize, size: usize) -> String {
     if offset >= bytes.len() {
         return "—".to_string();
     }
@@ -621,13 +792,20 @@ fn paint_inline_message(
         return;
     }
 
-    // ピル背景
+    // ピル背景（検索ヒット時は枠線を変更）
     let pill_margin = 2.0;
     let pill_rect = Rect::from_min_size(
         egui::pos2(x + pill_margin, center_y - row_h / 2.0 + pill_margin),
         Vec2::new(width - pill_margin * 2.0, row_h - pill_margin * 2.0),
     );
-    painter.rect(pill_rect, 4.0, theme::WRAP_PILL_BG, egui::Stroke::new(1.0, theme::WRAP_PILL_BORDER), egui::StrokeKind::Inside);
+    let (stroke_width, stroke_color) = if app.protocol_search.is_current_hit(match_idx) {
+        (2.0, theme::PROTO_SEARCH_CURRENT_BORDER)
+    } else if app.protocol_search.is_hit(match_idx) {
+        (2.0, theme::PROTO_SEARCH_HIGHLIGHT_BORDER)
+    } else {
+        (1.0, theme::WRAP_PILL_BORDER)
+    };
+    painter.rect(pill_rect, 4.0, theme::WRAP_PILL_BG, egui::Stroke::new(stroke_width, stroke_color), egui::StrokeKind::Inside);
 
     let matched = &app.protocol_state.matches[match_idx];
     let font = FONT();
@@ -812,6 +990,13 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
     let total_height = total_rows as f32 * row_h;
     let mut toggle_idx: Option<usize> = None;
 
+    // スクロールターゲットの行を特定
+    let scroll_to_row = app.protocol_search.take_scroll_target().and_then(|match_idx| {
+        lines.iter().position(|line| {
+            line.iter().any(|slot| matches!(&slot.kind, WrapSlotKind::Message(idx) if *idx == match_idx))
+        })
+    });
+
     ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
@@ -836,6 +1021,10 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                 );
                 let bg = if row % 2 == 0 { theme::PROTOCOL_ROW_EVEN } else { theme::PROTOCOL_ROW_ODD };
                 painter.rect_filled(row_rect, 0.0, bg);
+
+                if scroll_to_row == Some(row) {
+                    ui.scroll_to_rect(row_rect, Some(Align::Center));
+                }
 
                 if let Some(idx) = paint_wrap_slots(ui, &painter, app, &lines[row], rect.min.x, &row_rect, row_h, "wrap_stopped") {
                     toggle_idx = Some(idx);
@@ -930,6 +1119,7 @@ fn load_selected_protocol(app: &mut GlassApp, idx: usize) {
                 app.ui_state.protocol_expanded.clear();
                 app.ui_state.protocol_hidden_ids.clear();
                 app.ui_state.wrap.reset();
+                app.protocol_search.clear();
             }
             Err(e) => {
                 app.show_error(&e);

@@ -20,6 +20,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub show_search_bar: bool,
     #[serde(default)]
+    pub show_protocol_search_bar: bool,
+    #[serde(default)]
     pub language: Language,
     /// アクティブタブ ("monitor" or "protocol")
     #[serde(default)]
@@ -41,6 +43,7 @@ impl Default for AppSettings {
             display_mode: "Hex".to_string(),
             show_settings_window: false,
             show_search_bar: false,
+            show_protocol_search_bar: false,
             language: Language::default(),
             active_tab: String::new(),
             protocol_view_mode: String::new(),

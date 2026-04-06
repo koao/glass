@@ -6,4 +6,5 @@ pub mod monitor_view;
 pub mod protocol_panel;
 pub mod status_bar;
 pub mod search;
+pub mod protocol_search;
 pub mod error_dialog;
