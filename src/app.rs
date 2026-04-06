@@ -589,9 +589,11 @@ impl eframe::App for GlassApp {
         // チャネルからデータ受信
         self.drain_channel();
 
-        // プロトコルエンジンの増分同期
-        if let Some(engine) = &self.protocol_engine {
-            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+        // プロトコルエンジンの増分同期（一時停止中はスキップ）
+        if self.state != MonitorState::Paused {
+            if let Some(engine) = &self.protocol_engine {
+                self.protocol_state.sync_entries(self.buffer.entries(), engine);
+            }
         }
 
         // 受信中の検索自動更新
