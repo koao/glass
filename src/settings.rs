@@ -29,6 +29,9 @@ pub struct AppSettings {
     /// プロトコルパネル表示モード ("list" or "wrap")
     #[serde(default)]
     pub protocol_view_mode: String,
+    /// 選択中のプロトコル定義ファイル名
+    #[serde(default)]
+    pub selected_protocol: String,
 }
 
 impl Default for AppSettings {
@@ -47,6 +50,7 @@ impl Default for AppSettings {
             language: Language::default(),
             active_tab: String::new(),
             protocol_view_mode: String::new(),
+            selected_protocol: String::new(),
         }
     }
 }

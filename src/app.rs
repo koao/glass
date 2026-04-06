@@ -230,8 +230,23 @@ impl GlassApp {
         // プロトコル定義をスキャン・読み込み
         let protocols_dir = definition::protocols_dir();
         let protocol_files = definition::scan_protocols(&protocols_dir);
-        let (loaded_protocol, protocol_engine) = if !protocol_files.is_empty() {
-            match definition::load_protocol(&protocol_files[0].0) {
+        // 保存済みプロトコル名からインデックスを復元（見つからなければ先頭）
+        let selected_protocol_idx = if protocol_files.is_empty() {
+            None
+        } else {
+            Some(
+                protocol_files
+                    .iter()
+                    .position(|(path, _)| {
+                        path.file_name()
+                            .map(|f| f.to_string_lossy() == settings.selected_protocol)
+                            .unwrap_or(false)
+                    })
+                    .unwrap_or(0),
+            )
+        };
+        let (loaded_protocol, protocol_engine) = if let Some(idx) = selected_protocol_idx {
+            match definition::load_protocol(&protocol_files[idx].0) {
                 Ok(proto) => {
                     let engine = ProtocolEngine::new(&proto);
                     (Some(proto), Some(engine))
@@ -275,7 +290,7 @@ impl GlassApp {
                 screenshot_pending: false,
                 min_size_applied: false,
                 protocol_expanded: HashSet::new(),
-                selected_protocol_idx: if protocol_files.is_empty() { None } else { Some(0) },
+                selected_protocol_idx,
                 protocol_hidden_ids: HashSet::new(),
                 protocol_show_idle: true,
                 show_protocol_filter: false,
@@ -535,6 +550,10 @@ impl GlassApp {
                 ProtocolViewMode::Wrap => "wrap".to_string(),
                 _ => "list".to_string(),
             },
+            selected_protocol: self.ui_state.selected_protocol_idx
+                .and_then(|idx| self.protocol_files.get(idx))
+                .map(|(path, _)| path.file_name().unwrap_or_default().to_string_lossy().to_string())
+                .unwrap_or_default(),
         };
         settings.save();
     }
