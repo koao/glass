@@ -25,6 +25,28 @@ use crate::ui::search::SearchState;
 use crate::ui::protocol_search::ProtocolSearchState;
 use crate::ui::selection::Selection;
 
+/// ダイアログの種類
+#[derive(Clone)]
+pub enum DialogKind {
+    /// 確認ダイアログ（Yes/No）
+    Confirm {
+        title: String,
+        message: String,
+        on_confirm: ConfirmAction,
+    },
+    /// 情報ダイアログ（OKのみ）
+    Info {
+        title: String,
+        message: String,
+    },
+}
+
+/// 確認ダイアログで「はい」を押した時のアクション
+#[derive(Clone, Copy)]
+pub enum ConfirmAction {
+    ClearAll,
+}
+
 /// 表示モード
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisplayMode {
@@ -174,10 +196,8 @@ pub struct UiState {
     pub show_protocol_search_bar: bool,
     /// プロトコル検索ヘルプウィンドウ表示フラグ
     pub show_protocol_search_help: bool,
-    /// クリア確認ダイアログ表示フラグ
-    pub show_clear_confirm: bool,
-    /// エラーメッセージダイアログ
-    pub error_message: Option<String>,
+    /// アクティブなダイアログ（Noneなら非表示）
+    pub dialog: Option<DialogKind>,
     /// モニタビューの選択状態
     pub monitor_selection: Selection,
     /// プロトコルパネルの選択状態
@@ -313,8 +333,7 @@ impl GlassApp {
                 wrap: WrapViewState::new(),
                 show_protocol_search_bar: settings.show_protocol_search_bar,
                 show_protocol_search_help: false,
-                show_clear_confirm: false,
-                error_message: None,
+                dialog: None,
                 monitor_selection: Selection::new(),
                 protocol_selection: Selection::new(),
             },
@@ -388,7 +407,19 @@ impl GlassApp {
 
     /// エラーメッセージをダイアログで表示
     pub fn show_error(&mut self, message: &str) {
-        self.ui_state.error_message = Some(message.to_string());
+        self.ui_state.dialog = Some(DialogKind::Info {
+            title: self.t.err_dialog_title.to_string(),
+            message: message.to_string(),
+        });
+    }
+
+    /// クリア確認ダイアログを表示
+    pub fn show_clear_confirm(&mut self) {
+        self.ui_state.dialog = Some(DialogKind::Confirm {
+            title: self.t.clear.to_string(),
+            message: self.t.confirm_clear.to_string(),
+            on_confirm: ConfirmAction::ClearAll,
+        });
     }
 
     pub fn start(&mut self) {
@@ -761,8 +792,7 @@ impl eframe::App for GlassApp {
         // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
         ui::search_bar::draw_help(ui, self);
-        ui::error_dialog::draw(ui, self);
-        ui::confirm_dialog::draw(ui, self);
+        ui::dialog::draw(ui.ctx(), self);
 
         // スクリーンショット要求の送信
         if self.ui_state.screenshot_requested {

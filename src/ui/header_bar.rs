@@ -62,7 +62,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // クリア（確認ダイアログ経由）— タブ/モード切替の右隣
         if ui.button(format!("{} {}", regular::TRASH, app.t.clear)).clicked() {
-            app.ui_state.show_clear_confirm = true;
+            app.show_clear_confirm();
         }
 
         // 右寄せボタン
