@@ -8,4 +8,5 @@ pub mod status_bar;
 pub mod search;
 pub mod protocol_search;
 pub mod error_dialog;
+pub mod confirm_dialog;
 pub mod selection;

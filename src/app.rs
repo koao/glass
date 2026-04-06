@@ -7,7 +7,7 @@ use crossbeam_channel::{Receiver, Sender};
 use eframe::egui;
 
 /// ウィンドウ最小サイズ
-pub const MIN_WINDOW_SIZE: [f32; 2] = [800.0, 400.0];
+pub const MIN_WINDOW_SIZE: [f32; 2] = [1200.0, 400.0];
 
 use crate::i18n::{Language, Texts};
 use crate::model::buffer::MonitorBuffer;
@@ -172,6 +172,8 @@ pub struct UiState {
     pub show_protocol_search_bar: bool,
     /// プロトコル検索ヘルプウィンドウ表示フラグ
     pub show_protocol_search_help: bool,
+    /// クリア確認ダイアログ表示フラグ
+    pub show_clear_confirm: bool,
     /// エラーメッセージダイアログ
     pub error_message: Option<String>,
     /// モニタビューの選択状態
@@ -307,6 +309,7 @@ impl GlassApp {
                 wrap: WrapViewState::new(),
                 show_protocol_search_bar: settings.show_protocol_search_bar,
                 show_protocol_search_help: false,
+                show_clear_confirm: false,
                 error_message: None,
                 monitor_selection: Selection::new(),
                 protocol_selection: Selection::new(),
@@ -464,6 +467,24 @@ impl GlassApp {
         self.ui_state.protocol_selection.clear();
         self.last_byte_time = None;
         self.search = SearchState::new();
+    }
+
+    /// 検索バーの表示/非表示を切り替え（アクティブタブに応じて）
+    pub fn toggle_search(&mut self) {
+        match self.active_tab {
+            ViewTab::Monitor => {
+                self.ui_state.show_search_bar = !self.ui_state.show_search_bar;
+                if !self.ui_state.show_search_bar {
+                    self.search.reset();
+                }
+            }
+            ViewTab::Protocol => {
+                self.ui_state.show_protocol_search_bar = !self.ui_state.show_protocol_search_bar;
+                if !self.ui_state.show_protocol_search_bar {
+                    self.protocol_search.reset();
+                }
+            }
+        }
     }
 
     /// 選択範囲をクリップボードにコピー（混合形式をデフォルト使用）
@@ -656,9 +677,12 @@ impl eframe::App for GlassApp {
         }
 
         // キーボードショートカット
-        let (ctrl_f, escape) = ui.input(|i| {
+        let (ctrl_f, ctrl_o, ctrl_s, ctrl_shift_s, escape) = ui.input(|i| {
             (
                 i.key_pressed(egui::Key::F) && i.modifiers.ctrl,
+                i.key_pressed(egui::Key::O) && i.modifiers.ctrl && !i.modifiers.shift,
+                i.key_pressed(egui::Key::S) && i.modifiers.ctrl && !i.modifiers.shift,
+                i.key_pressed(egui::Key::S) && i.modifiers.ctrl && i.modifiers.shift,
                 i.key_pressed(egui::Key::Escape),
             )
         });
@@ -675,21 +699,21 @@ impl eframe::App for GlassApp {
                 }
             }
         }
+        // Ctrl+O: ファイル読み込み（停止中のみ）
+        let is_stopped = self.state == MonitorState::Stopped;
+        if ctrl_o && is_stopped {
+            self.load_from_file();
+        }
+        // Ctrl+S: ファイル保存（停止中かつデータあり）
+        if ctrl_s && is_stopped && self.buffer.byte_count() > 0 {
+            self.save_to_file();
+        }
+        // Ctrl+Shift+S: スクリーンショット
+        if ctrl_shift_s {
+            self.ui_state.screenshot_requested = true;
+        }
         if ctrl_f {
-            match self.active_tab {
-                ViewTab::Monitor => {
-                    self.ui_state.show_search_bar = !self.ui_state.show_search_bar;
-                    if !self.ui_state.show_search_bar {
-                        self.search.reset();
-                    }
-                }
-                ViewTab::Protocol => {
-                    self.ui_state.show_protocol_search_bar = !self.ui_state.show_protocol_search_bar;
-                    if !self.ui_state.show_protocol_search_bar {
-                        self.protocol_search.reset();
-                    }
-                }
-            }
+            self.toggle_search();
         }
         if escape {
             if self.ui_state.show_search_bar && self.active_tab == ViewTab::Monitor {
@@ -732,6 +756,7 @@ impl eframe::App for GlassApp {
         ui::settings_window::draw(ui, self);
         ui::search_bar::draw_help(ui, self);
         ui::error_dialog::draw(ui, self);
+        ui::confirm_dialog::draw(ui, self);
 
         // スクリーンショット要求の送信
         if self.ui_state.screenshot_requested {

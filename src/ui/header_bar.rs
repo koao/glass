@@ -57,62 +57,68 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         if app.active_tab == ViewTab::Monitor {
             ui.selectable_value(&mut app.display_mode, DisplayMode::Hex, "HEX");
             ui.selectable_value(&mut app.display_mode, DisplayMode::Ascii, "ASCII");
+            ui.separator();
         }
 
-        // 右寄せアイコンボタン
+        // クリア（確認ダイアログ経由）— タブ/モード切替の右隣
+        if ui.button(format!("{} {}", regular::TRASH, app.t.clear)).clicked() {
+            app.ui_state.show_clear_confirm = true;
+        }
+
+        // 右寄せボタン
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // メニュー（一番右）
+            let has_data = app.buffer.byte_count() > 0;
+            ui.menu_button(format!("{} {}", regular::LIST, app.t.menu), |ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
+                // ファイル読み込み (Ctrl+O)
+                if ui
+                    .add_enabled(is_stopped, egui::Button::new(
+                        format!("{}  {}    Ctrl+O", regular::FOLDER_OPEN, app.t.load_file)
+                    ))
+                    .clicked()
+                {
+                    app.load_from_file();
+                    ui.close();
+                }
+                // ファイル保存 (Ctrl+S)
+                if ui
+                    .add_enabled(is_stopped && has_data, egui::Button::new(
+                        format!("{}  {}    Ctrl+S", regular::FLOPPY_DISK, app.t.save_file)
+                    ))
+                    .clicked()
+                {
+                    app.save_to_file();
+                    ui.close();
+                }
+                // スクリーンショット (Ctrl+Shift+S)
+                if ui
+                    .button(format!("{}  {}    Ctrl+Shift+S", regular::CAMERA, app.t.screenshot))
+                    .clicked()
+                {
+                    app.ui_state.screenshot_requested = true;
+                    ui.close();
+                }
+            });
+
             // 設定ウィンドウトグル（停止中のみ）
             if ui
-                .add_enabled(is_stopped, egui::Button::new(regular::GEAR_SIX))
-                .on_hover_text(if is_stopped { app.t.settings } else { app.t.settings_stopped_only })
+                .add_enabled(is_stopped, egui::Button::new(
+                    format!("{} {}", regular::GEAR_SIX, app.t.settings)
+                ))
+                .on_disabled_hover_text(app.t.settings_stopped_only)
                 .clicked()
             {
                 app.ui_state.show_settings_window = !app.ui_state.show_settings_window;
             }
 
-            // クリア
-            if ui.button(regular::TRASH).on_hover_text(app.t.clear).clicked() {
-                app.clear_all();
-            }
-
-            // スクリーンショット
+            // 検索トグル（タブに応じてモニタ/プロトコル検索を切替）
             if ui
-                .button(regular::CAMERA)
-                .on_hover_text(app.t.screenshot)
-                .clicked()
-            {
-                app.ui_state.screenshot_requested = true;
-            }
-
-            // ファイル保存（停止中かつデータあり）
-            let has_data = app.buffer.byte_count() > 0;
-            if ui
-                .add_enabled(is_stopped && has_data, egui::Button::new(regular::FLOPPY_DISK))
-                .on_hover_text(if is_stopped { app.t.save_file } else { app.t.save_file_stopped_only })
-                .clicked()
-            {
-                app.save_to_file();
-            }
-
-            // ファイル読み込み（停止中のみ）
-            if ui
-                .add_enabled(is_stopped, egui::Button::new(regular::FOLDER_OPEN))
-                .on_hover_text(if is_stopped { app.t.load_file } else { app.t.load_file_stopped_only })
-                .clicked()
-            {
-                app.load_from_file();
-            }
-
-            // 検索トグル
-            if ui
-                .button(regular::MAGNIFYING_GLASS)
+                .button(format!("{} {}", regular::MAGNIFYING_GLASS, app.t.search_button))
                 .on_hover_text(app.t.search_shortcut)
                 .clicked()
             {
-                app.ui_state.show_search_bar = !app.ui_state.show_search_bar;
-                if !app.ui_state.show_search_bar {
-                    app.search.reset();
-                }
+                app.toggle_search();
             }
         });
     });

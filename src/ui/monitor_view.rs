@@ -180,6 +180,7 @@ fn draw_context_menu(response: &egui::Response, _ui: &mut Ui, app: &mut GlassApp
         return;
     }
     response.clone().context_menu(|ui| {
+        ui.spacing_mut().item_spacing.y = 8.0;
         if ui.button(app.t.copy_mixed).clicked() {
             if let Some(range) = app.ui_state.monitor_selection.range() {
                 let text = selection::format_monitor_mixed(app.display_buffer.cells(), range);

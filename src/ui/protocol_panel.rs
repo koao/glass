@@ -154,6 +154,8 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
             let mut new_idx: Option<usize> = None;
 
             egui::ComboBox::from_id_salt("protocol_select")
+                .width(180.0)
+                .truncate()
                 .selected_text(selected_title)
                 .show_ui(ui, |ui| {
                     for (i, title) in titles.iter().enumerate() {
@@ -180,20 +182,21 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
             reload_protocols(app);
         }
 
+        ui.separator();
+
         // フィルタボタン
-        if ui.button(regular::FUNNEL)
-            .on_hover_text(app.t.protocol_filter)
+        if ui.button(format!("{} {}", regular::FUNNEL, app.t.protocol_filter))
             .clicked()
         {
             app.ui_state.show_protocol_filter = !app.ui_state.show_protocol_filter;
         }
 
         // 表示モード切り替えボタン
-        let (mode_icon, mode_tooltip) = match app.ui_state.protocol_view_mode {
-            ProtocolViewMode::List => (regular::REPEAT, app.t.protocol_mode_wrap),
-            ProtocolViewMode::Wrap => (regular::LIST_BULLETS, app.t.protocol_mode_list),
+        let (mode_icon, mode_short, mode_tooltip) = match app.ui_state.protocol_view_mode {
+            ProtocolViewMode::List => (regular::REPEAT, app.t.protocol_mode_wrap_short, app.t.protocol_mode_wrap),
+            ProtocolViewMode::Wrap => (regular::LIST_BULLETS, app.t.protocol_mode_list_short, app.t.protocol_mode_list),
         };
-        if ui.button(mode_icon)
+        if ui.button(format!("{} {}", mode_icon, mode_short))
             .on_hover_text(mode_tooltip)
             .clicked()
         {
@@ -202,17 +205,6 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
                 ProtocolViewMode::Wrap => ProtocolViewMode::List,
             };
             app.ui_state.wrap.reset();
-        }
-
-        // 検索ボタン
-        if ui.button(regular::MAGNIFYING_GLASS)
-            .on_hover_text(app.t.search_shortcut)
-            .clicked()
-        {
-            app.ui_state.show_protocol_search_bar = !app.ui_state.show_protocol_search_bar;
-            if !app.ui_state.show_protocol_search_bar {
-                app.protocol_search.reset();
-            }
         }
 
         // マッチ数表示（右���せ）
@@ -548,6 +540,7 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
             let sel_range = app.ui_state.protocol_selection.range().unwrap();
             let matches_ref = &app.protocol_state.matches;
             area_resp.context_menu(|ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
                 if ui.button(copy_label).clicked() {
                     let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
                     let text = selection::format_protocol_copy(matches_ref, proto, &indices);
@@ -1058,6 +1051,7 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
             let matches_ref = &app.protocol_state.matches;
             let proto_ref = app.loaded_protocol.as_ref();
             area_resp.context_menu(|ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
                 if let Some(proto) = proto_ref {
                     if ui.button(copy_label).clicked() {
                         let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
@@ -1222,6 +1216,7 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                     selection::format_protocol_copy(&app.protocol_state.matches, proto, &indices)
                 });
                 area_resp.context_menu(|ui| {
+                    ui.spacing_mut().item_spacing.y = 8.0;
                     if let Some(text) = &copy_text {
                         if !text.is_empty() && ui.button(copy_label).clicked() {
                             ui.ctx().copy_text(text.clone());
