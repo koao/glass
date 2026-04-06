@@ -17,6 +17,45 @@ const ROW_HEIGHT: f32 = 28.0;
 const FONT: fn() -> egui::FontId = || egui::FontId::proportional(15.0);
 const MONO_FONT: fn() -> egui::FontId = || egui::FontId::monospace(13.0);
 
+/// IDLE上クリック時に同じ行の最寄りメッセージインデックスを返す
+fn nearest_message_in_row(slots: &[WrapSlot], local_x: f32) -> Option<usize> {
+    let mut best: Option<(f32, usize)> = None;
+    for s in slots {
+        if let WrapSlotKind::Message(idx) = &s.kind {
+            let center = s.x + s.width / 2.0;
+            let dist = (center - local_x).abs();
+            if best.is_none() || dist < best.unwrap().0 {
+                best = Some((dist, *idx));
+            }
+        }
+    }
+    best.map(|(_, idx)| idx)
+}
+
+/// IDLE スロットが選択範囲内にあるか判定（前後のメッセージが両方選択内）
+fn is_idle_selected(app: &GlassApp, slots: &[WrapSlot], slot_index: usize) -> bool {
+    let (sel_lo, sel_hi) = match app.ui_state.protocol_selection.range() {
+        Some(r) => r,
+        None => return false,
+    };
+    // 前方の最寄りメッセージ
+    let prev = slots[..slot_index].iter().rev().find_map(|s| {
+        if let WrapSlotKind::Message(idx) = &s.kind { Some(*idx) } else { None }
+    });
+    // 後方の最寄りメッセージ
+    let next = slots[slot_index + 1..].iter().find_map(|s| {
+        if let WrapSlotKind::Message(idx) = &s.kind { Some(*idx) } else { None }
+    });
+    match (prev, next) {
+        // 前後両方にメッセージがあれば、両方が選択範囲内か
+        (Some(p), Some(n)) => p >= sel_lo && p <= sel_hi && n >= sel_lo && n <= sel_hi,
+        // 片方だけなら、そちらが選択範囲内か
+        (Some(p), None) => p >= sel_lo && p <= sel_hi,
+        (None, Some(n)) => n >= sel_lo && n <= sel_hi,
+        (None, None) => false,
+    }
+}
+
 /// IDLE テキストを描画
 fn paint_idle_text(painter: &egui::Painter, idle_ms: f64, x: f32, center_y: f32) {
     let text = format!("IDLE {}ms", idle_ms as u64);
@@ -51,7 +90,7 @@ fn paint_wrap_slots(
 ) {
     let center_y = row_rect.center().y;
 
-    for slot in slots {
+    for (i, slot) in slots.iter().enumerate() {
         let slot_x = rect_min_x + slot.x;
         match &slot.kind {
             WrapSlotKind::Message(match_idx) => {
@@ -69,6 +108,14 @@ fn paint_wrap_slots(
             }
             WrapSlotKind::Idle(idle_ms) => {
                 paint_idle_text(painter, *idle_ms, slot_x, center_y);
+                // 前後のメッセージが選択範囲内ならIDLEもハイライト
+                if is_idle_selected(app, slots, i) {
+                    let slot_rect = Rect::from_min_size(
+                        egui::pos2(slot_x, row_rect.min.y),
+                        Vec2::new(slot.width, row_h),
+                    );
+                    painter.rect_filled(slot_rect, 4.0, theme::SELECTION_BG);
+                }
             }
         }
     }
@@ -1005,7 +1052,8 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
                     if let WrapSlotKind::Message(idx) = &slot.kind {
                         return Some(*idx);
                     }
-                    return None; // IDLE上 → 選択しない
+                    // IDLE上 → 同じ行の最寄りメッセージを返す
+                    return nearest_message_in_row(&slots_ref[row], local_x);
                 }
             }
             None
@@ -1157,7 +1205,7 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                 Sense::click_and_drag(),
             );
 
-            // ドラッグ選択処理 — メッセージスロット上のみヒット
+            // ドラッグ選択処理
             let hit_slot_match = |pos: egui::Pos2| -> Option<usize> {
                 if !rect.contains(pos) { return None; }
                 let row = ((pos.y - rect.min.y) / row_h).floor() as usize;
@@ -1168,7 +1216,8 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                         if let WrapSlotKind::Message(idx) = &slot.kind {
                             return Some(*idx);
                         }
-                        return None; // IDLE上 → 選択しない
+                        // IDLE上 → 同じ行の最寄りメッセージを返す
+                        return nearest_message_in_row(&lines[row], local_x);
                     }
                 }
                 None
