@@ -1,9 +1,10 @@
-use egui::{Align2, Color32, FontId, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2};
+use egui::{Align2, Color32, FontId, PointerButton, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2};
 use egui::epaint::TextShape;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
 use crate::ui::search::SearchState;
+use crate::ui::selection;
 use crate::ui::theme;
 
 // === フォントサイズ ===
@@ -100,6 +101,109 @@ fn search_highlight_bg(search: &SearchState, entry_idx: usize, time: f64) -> Opt
     }
 }
 
+/// マウス位置からセルインデックスを取得
+fn hit_test_cell(pos: Pos2, rect: Rect, cols: usize, cell_w: f32, cell_h: f32, max_idx: usize) -> Option<usize> {
+    if !rect.contains(pos) {
+        return None;
+    }
+    let col = ((pos.x - rect.min.x) / cell_w) as usize;
+    let row = ((pos.y - rect.min.y) / cell_h) as usize;
+    let idx = row * cols + col;
+    if col < cols && idx < max_idx {
+        Some(idx)
+    } else {
+        None
+    }
+}
+
+/// 選択のマウスイベント処理
+fn handle_selection_input(
+    ui: &Ui,
+    response: &egui::Response,
+    app: &mut GlassApp,
+    rect: Rect,
+    cols: usize,
+    cell_w: f32,
+    cell_h: f32,
+    max_idx: usize,
+    cell_to_disp: impl Fn(usize) -> Option<usize>,
+) {
+    let shift = ui.input(|i| i.modifiers.shift);
+
+    // クリック: 選択開始/クリア
+    if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
+                if let Some(disp_idx) = cell_to_disp(cell_idx) {
+                    if shift {
+                        app.ui_state.monitor_selection.extend(disp_idx);
+                    } else {
+                        app.ui_state.monitor_selection.start(disp_idx);
+                    }
+                }
+            } else {
+                // グリッド外クリック: 選択解除
+                app.ui_state.monitor_selection.clear();
+            }
+        }
+    }
+
+    // ドラッグ開始: 選択開始
+    if response.drag_started_by(PointerButton::Primary) {
+        if let Some(pos) = response.interact_pointer_pos() {
+            if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
+                if let Some(disp_idx) = cell_to_disp(cell_idx) {
+                    if !shift {
+                        app.ui_state.monitor_selection.start(disp_idx);
+                    }
+                }
+            }
+        }
+    }
+
+    // ドラッグ中: 選択範囲を拡張
+    if response.dragged_by(PointerButton::Primary) {
+        if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+            if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
+                if let Some(disp_idx) = cell_to_disp(cell_idx) {
+                    app.ui_state.monitor_selection.extend(disp_idx);
+                }
+            }
+        }
+    }
+
+}
+
+/// コンテキストメニュー（右クリック）の描画 — 選択範囲がある場合のみ表示
+fn draw_context_menu(response: &egui::Response, _ui: &mut Ui, app: &mut GlassApp) {
+    if app.ui_state.monitor_selection.range().is_none() {
+        return;
+    }
+    response.clone().context_menu(|ui| {
+        if ui.button(app.t.copy_mixed).clicked() {
+            if let Some(range) = app.ui_state.monitor_selection.range() {
+                let text = selection::format_monitor_mixed(app.display_buffer.cells(), range);
+                ui.ctx().copy_text(text);
+            }
+            ui.close();
+        }
+        if ui.button(app.t.copy_hex).clicked() {
+            if let Some(range) = app.ui_state.monitor_selection.range() {
+                let text = selection::format_monitor_hex(app.display_buffer.cells(), range);
+                ui.ctx().copy_text(text);
+            }
+            ui.close();
+        }
+        if ui.button(app.t.copy_binary).clicked() {
+            if let Some(range) = app.ui_state.monitor_selection.range() {
+                let text = selection::format_monitor_binary(app.display_buffer.cells(), range);
+                ui.ctx().copy_text(text);
+            }
+            ui.close();
+        }
+    });
+}
+
 /// メインモニタビュー描画
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     if app.state != MonitorState::Paused {
@@ -125,13 +229,19 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 }
 
 /// 取得中: 1画面リングバッファ上書き表示
-fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols: usize) {
+fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, cols: usize) {
     let available = ui.available_size();
     let rows = (available.y / cell_h).floor().max(1.0) as usize;
     let total_cells = cols * rows;
 
+    // Paused時はクリック&ドラッグ可、Running時はhoverのみ
+    let sense = if app.state == MonitorState::Paused {
+        Sense::click_and_drag()
+    } else {
+        Sense::hover()
+    };
     let desired = Vec2::new(cols as f32 * cell_w, rows as f32 * cell_h);
-    let (rect, _) = ui.allocate_exact_size(desired, Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(desired, sense);
     let painter = ui.painter_at(rect);
 
     painter.rect_filled(rect, 0.0, theme::GRID_BG);
@@ -139,6 +249,22 @@ fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols:
 
     let buf_len = app.display_buffer.len();
     let time = ui.input(|i| i.time);
+
+    // Running時は選択をクリア
+    if app.state == MonitorState::Running {
+        app.ui_state.monitor_selection.clear();
+    }
+
+    // Paused時: 選択処理
+    if app.state == MonitorState::Paused {
+        let bl = buf_len;
+        let tc = total_cells;
+        handle_selection_input(
+            ui, &response, app, rect, cols, cell_w, cell_h, total_cells,
+            |cell_idx| map_cell_to_entry(cell_idx, bl, tc),
+        );
+        draw_context_menu(&response, ui, app);
+    }
 
     for cell_idx in 0..total_cells {
         if let Some(disp_idx) = map_cell_to_entry(cell_idx, buf_len, total_cells) {
@@ -152,6 +278,11 @@ fn draw_ring_buffer(ui: &mut Ui, app: &GlassApp, cell_w: f32, cell_h: f32, cols:
             }
 
             draw_cell(&painter, cr, cell, &app.display_mode);
+
+            // 選択ハイライト（半透明オーバーレイ）
+            if app.ui_state.monitor_selection.contains(disp_idx) {
+                painter.rect_filled(cr, 0.0, theme::SELECTION_BG);
+            }
         }
     }
 
@@ -204,11 +335,18 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
         .auto_shrink([false, false])
         .show(ui, |ui| {
             let desired = Vec2::new(cols as f32 * cell_w, total_rows as f32 * cell_h);
-            let (rect, _) = ui.allocate_exact_size(desired, Sense::hover());
+            let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
             let painter = ui.painter_at(rect);
 
             painter.rect_filled(rect, 0.0, theme::GRID_BG);
             draw_row_lines(&painter, rect, cols, total_rows, cell_w, cell_h);
+
+            // 選択処理
+            handle_selection_input(
+                ui, &response, app, rect, cols, cell_w, cell_h, total_cells,
+                |cell_idx| if cell_idx < total_cells { Some(cell_idx) } else { None },
+            );
+            draw_context_menu(&response, ui, app);
 
             let time = ui.input(|i| i.time);
 
@@ -228,6 +366,11 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
                 }
 
                 draw_cell(&painter, cr, cell, &app.display_mode);
+
+                // 選択ハイライト（半透明オーバーレイ）
+                if app.ui_state.monitor_selection.contains(i) {
+                    painter.rect_filled(cr, 0.0, theme::SELECTION_BG);
+                }
             }
 
             // スクロール先にジャンプ

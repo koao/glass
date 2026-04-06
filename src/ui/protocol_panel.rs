@@ -7,6 +7,7 @@ use egui_phosphor::regular;
 use crate::app::{GlassApp, MonitorState, ProtocolViewMode, WrapSlot, WrapSlotKind, WrapViewState};
 use crate::protocol::definition;
 use crate::protocol::engine::ProtocolEngine;
+use crate::ui::selection;
 use crate::ui::theme;
 
 /// 行の高さ
@@ -41,30 +42,28 @@ fn handle_expand_toggle(app: &mut GlassApp, toggle_idx: Option<usize>) {
 
 /// スロット行の描画（メッセージ・IDLE描画＋クリック判定）
 fn paint_wrap_slots(
-    ui: &mut Ui,
     painter: &egui::Painter,
     app: &GlassApp,
     slots: &[WrapSlot],
     rect_min_x: f32,
     row_rect: &Rect,
     row_h: f32,
-    id_salt: &str,
-) -> Option<usize> {
+) {
     let center_y = row_rect.center().y;
-    let mut clicked = None;
+
     for slot in slots {
         let slot_x = rect_min_x + slot.x;
         match &slot.kind {
             WrapSlotKind::Message(match_idx) => {
                 if *match_idx < app.protocol_state.matches.len() {
                     paint_inline_message(painter, app, *match_idx, slot_x, center_y, slot.width, row_h);
-                    let slot_rect = Rect::from_min_size(
-                        egui::pos2(slot_x, row_rect.min.y),
-                        Vec2::new(slot.width, row_h),
-                    );
-                    let resp = ui.interact(slot_rect, egui::Id::new((id_salt, *match_idx)), Sense::click());
-                    if resp.clicked() {
-                        clicked = Some(*match_idx);
+                    // 選択ハイライト
+                    if app.ui_state.protocol_selection.contains(*match_idx) {
+                        let slot_rect = Rect::from_min_size(
+                            egui::pos2(slot_x, row_rect.min.y),
+                            Vec2::new(slot.width, row_h),
+                        );
+                        painter.rect_filled(slot_rect, 4.0, theme::SELECTION_BG);
                     }
                 }
             }
@@ -73,11 +72,15 @@ fn paint_wrap_slots(
             }
         }
     }
-    clicked
 }
 
 /// プロトコルパネル描画
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
+    // Running時は選択をクリア
+    if app.state == MonitorState::Running {
+        app.ui_state.protocol_selection.clear();
+    }
+
     // 表示行リストを1回だけ構築
     let rows = build_row_entries(app);
     let msg_count = rows.iter().filter(|r| matches!(r, RowEntry::Message(..))).count();
@@ -107,14 +110,15 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                     ui.colored_label(theme::TEXT_MUTED, app.t.protocol_no_match);
                 });
             } else {
-                let is_stopped = app.state == MonitorState::Stopped;
+                let is_running = app.state == MonitorState::Running;
                 // スクロールターゲットを行インデックスに変換
                 let scroll_to_row = app.protocol_search.take_scroll_target().and_then(|match_idx| {
                     rows.iter().position(|r| matches!(r, RowEntry::Message(idx, _) if *idx == match_idx))
                 });
-                if is_stopped {
+                if !is_running {
                     ScrollArea::vertical()
                         .auto_shrink([false, false])
+                        .scroll_source(egui::scroll_area::ScrollSource { drag: false, ..Default::default() })
                         .show(ui, |ui| {
                             draw_match_list(ui, app, &rows, false, scroll_to_row);
                         });
@@ -461,7 +465,6 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
         return;
     }
 
-    let expanded = &app.ui_state.protocol_expanded;
     let row_h = ROW_HEIGHT;
     let available_width = ui.available_width();
     let available_height = ui.available_height();
@@ -480,10 +483,82 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
         draw_last = total_rows;
     }
 
-    let (rect, _) = ui.allocate_exact_size(
+    let sense = if latest_only { Sense::hover() } else { Sense::click_and_drag() };
+    let (rect, area_resp) = ui.allocate_exact_size(
         Vec2::new(available_width, total_height),
-        Sense::hover(),
+        sense,
     );
+
+    let mut toggle_idx: Option<usize> = None;
+
+    // 選択・ドラッグ処理（全エリア）— IDLE行は選択対象外
+    if !latest_only {
+        // メッセージ行のみヒット（IDLE行はNone）
+        let hit_row_match = |pos: egui::Pos2| -> Option<usize> {
+            if !rect.contains(pos) { return None; }
+            let row_idx = ((pos.y - rect.min.y) / row_h).floor() as usize;
+            if row_idx >= total_rows { return None; }
+            match &rows[row_idx] {
+                RowEntry::Message(idx, _) => Some(*idx),
+                RowEntry::Idle(_) => None,
+            }
+        };
+
+        // ダブルクリック: 詳細展開
+        if area_resp.double_clicked() {
+            if let Some(pos) = area_resp.interact_pointer_pos() {
+                if let Some(mi) = hit_row_match(pos) {
+                    toggle_idx = Some(mi);
+                }
+            }
+        }
+        // クリック: 単体選択 / Shift+クリック: 範囲拡張
+        else if area_resp.clicked() {
+            if let Some(pos) = area_resp.interact_pointer_pos() {
+                if let Some(mi) = hit_row_match(pos) {
+                    let shift = ui.input(|i| i.modifiers.shift);
+                    if shift {
+                        app.ui_state.protocol_selection.extend(mi);
+                    } else {
+                        app.ui_state.protocol_selection.start(mi);
+                    }
+                }
+            }
+        }
+        // ドラッグ開始: 選択開始
+        if area_resp.drag_started_by(egui::PointerButton::Primary) {
+            if let Some(pos) = area_resp.interact_pointer_pos() {
+                if let Some(mi) = hit_row_match(pos) {
+                    app.ui_state.protocol_selection.start(mi);
+                }
+            }
+        }
+        // ドラッグ中: 選択範囲を拡張
+        if area_resp.dragged_by(egui::PointerButton::Primary) {
+            if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+                if let Some(mi) = hit_row_match(pos) {
+                    app.ui_state.protocol_selection.extend(mi);
+                }
+            }
+        }
+
+        // 右クリックコンテキストメニュー（選択がある場合のみ）
+        if app.ui_state.protocol_selection.range().is_some() {
+            let copy_label = app.t.copy;
+            let sel_range = app.ui_state.protocol_selection.range().unwrap();
+            let matches_ref = &app.protocol_state.matches;
+            area_resp.context_menu(|ui| {
+                if ui.button(copy_label).clicked() {
+                    let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
+                    let text = selection::format_protocol_copy(matches_ref, proto, &indices);
+                    if !text.is_empty() {
+                        ui.ctx().copy_text(text);
+                    }
+                    ui.close();
+                }
+            });
+        }
+    }
 
     // 実際に描画する範囲
     let (draw_f, draw_l) = if latest_only {
@@ -497,7 +572,6 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
         (f, l)
     };
 
-    let mut toggle_idx: Option<usize> = None;
     let painter = ui.painter_at(rect);
     let row_offset = if latest_only { draw_first } else { 0 };
     let font = FONT();
@@ -513,6 +587,24 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
 
         match &rows[row_idx] {
             RowEntry::Idle(idle_ms) => {
+                // 選択ハイライト: 前後両方のメッセージが選択範囲内の場合のみ
+                if let Some((sel_lo, sel_hi)) = app.ui_state.protocol_selection.range() {
+                    let prev = rows[..row_idx].iter().rev().find_map(|r| match r {
+                        RowEntry::Message(idx, _) => Some(*idx),
+                        _ => None,
+                    });
+                    let next = rows[row_idx + 1..].iter().find_map(|r| match r {
+                        RowEntry::Message(idx, _) => Some(*idx),
+                        _ => None,
+                    });
+                    let between = match (prev, next) {
+                        (Some(p), Some(n)) => p >= sel_lo && n <= sel_hi,
+                        _ => false,
+                    };
+                    if between {
+                        painter.rect_filled(row_rect, 0.0, theme::SELECTION_BG);
+                    }
+                }
                 paint_idle_text(&painter, *idle_ms, row_rect.min.x + 8.0, center_y);
             }
             RowEntry::Message(match_idx, even) => {
@@ -535,15 +627,8 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
                     ui.scroll_to_rect(row_rect, Some(Align::Center));
                 }
 
-                let is_expanded = expanded.contains(match_idx);
                 let text_x = row_rect.min.x + 8.0;
-
-                // 展開三角
-                let arrow = if is_expanded { regular::CARET_DOWN } else { regular::CARET_RIGHT };
-                let arrow_g = painter.layout_no_wrap(arrow.to_string(), font.clone(), theme::TEXT_MUTED);
-                let arrow_w = arrow_g.rect.width();
-                painter.galley(egui::pos2(text_x, center_y - arrow_g.rect.height() / 2.0), arrow_g, theme::TEXT_MUTED);
-                let mut cur_x = text_x + arrow_w + 6.0;
+                let mut cur_x = text_x;
 
                 match matched.message_def_idx {
                     Some(def_idx) => {
@@ -581,12 +666,9 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
                 let right_x = row_rect.max.x - g.rect.width() - 8.0;
                 painter.galley(egui::pos2(right_x, center_y - g.rect.height() / 2.0), g, theme::TEXT_MUTED);
 
-                // クリック判定（停止中のみ）
-                if !latest_only {
-                    let click_resp = ui.interact(row_rect, egui::Id::new(("proto_row", *match_idx)), Sense::click());
-                    if click_resp.clicked() {
-                        toggle_idx = Some(*match_idx);
-                    }
+                // 選択ハイライト
+                if app.ui_state.protocol_selection.contains(*match_idx) {
+                    painter.rect_filled(row_rect, 0.0, theme::SELECTION_BG);
                 }
             }
         }
@@ -907,15 +989,91 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
     app.ui_state.wrap.rendered_count = total_matches;
 
     // 描画
+    let is_paused = app.state == MonitorState::Paused;
     let total_height = max_rows as f32 * row_h;
-    let (rect, _) = ui.allocate_exact_size(
+    let sense = if is_paused { Sense::click_and_drag() } else { Sense::hover() };
+    let (rect, area_resp) = ui.allocate_exact_size(
         Vec2::new(available_width, total_height),
-        Sense::hover(),
+        sense,
     );
-    let painter = ui.painter_at(rect);
-    let cursor_row = app.ui_state.wrap.cursor;
 
     let mut toggle_idx: Option<usize> = None;
+
+    // Paused時: ドラッグ選択
+    if is_paused {
+        let slots_ref = &app.ui_state.wrap.slots;
+        let hit_slot_match = |pos: egui::Pos2| -> Option<usize> {
+            if !rect.contains(pos) { return None; }
+            let row = ((pos.y - rect.min.y) / row_h).floor() as usize;
+            if row >= slots_ref.len() { return None; }
+            let local_x = pos.x - rect.min.x;
+            for slot in &slots_ref[row] {
+                if local_x >= slot.x && local_x <= slot.x + slot.width {
+                    if let WrapSlotKind::Message(idx) = &slot.kind {
+                        return Some(*idx);
+                    }
+                    return None; // IDLE上 → 選択しない
+                }
+            }
+            None
+        };
+
+        if area_resp.double_clicked() {
+            if let Some(pos) = area_resp.interact_pointer_pos() {
+                if let Some(mi) = hit_slot_match(pos) {
+                    toggle_idx = Some(mi);
+                }
+            }
+        } else if area_resp.clicked() {
+            if let Some(pos) = area_resp.interact_pointer_pos() {
+                if let Some(mi) = hit_slot_match(pos) {
+                    let shift = ui.input(|i| i.modifiers.shift);
+                    if shift {
+                        app.ui_state.protocol_selection.extend(mi);
+                    } else {
+                        app.ui_state.protocol_selection.start(mi);
+                    }
+                }
+            }
+        }
+        if area_resp.drag_started_by(egui::PointerButton::Primary) {
+            if let Some(pos) = area_resp.interact_pointer_pos() {
+                if let Some(mi) = hit_slot_match(pos) {
+                    app.ui_state.protocol_selection.start(mi);
+                }
+            }
+        }
+        if area_resp.dragged_by(egui::PointerButton::Primary) {
+            if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+                if let Some(mi) = hit_slot_match(pos) {
+                    app.ui_state.protocol_selection.extend(mi);
+                }
+            }
+        }
+
+        // 右クリックコンテキストメニュー
+        if app.ui_state.protocol_selection.range().is_some() {
+            let copy_label = app.t.copy;
+            let sel_range = app.ui_state.protocol_selection.range().unwrap();
+            let matches_ref = &app.protocol_state.matches;
+            let proto_ref = app.loaded_protocol.as_ref();
+            area_resp.context_menu(|ui| {
+                if let Some(proto) = proto_ref {
+                    if ui.button(copy_label).clicked() {
+                        let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
+                        let text = selection::format_protocol_copy(matches_ref, proto, &indices);
+                        if !text.is_empty() {
+                            ui.ctx().copy_text(text);
+                        }
+                        ui.close();
+                    }
+                }
+            });
+        }
+    }
+
+    let painter = ui.painter_at(rect);
+    let cursor_row = app.ui_state.wrap.cursor;
 
     for row in 0..max_rows {
         let y_top = rect.min.y + row as f32 * row_h;
@@ -932,9 +1090,8 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         }
 
         if row < app.ui_state.wrap.slots.len() {
-            if let Some(idx) = paint_wrap_slots(ui, &painter, app, &app.ui_state.wrap.slots[row], rect.min.x, &row_rect, row_h, "wrap_slot") {
-                toggle_idx = Some(idx);
-            }
+            let slots = app.ui_state.wrap.slots[row].clone();
+            paint_wrap_slots(&painter, app, &slots, rect.min.x, &row_rect, row_h);
         }
 
         // カーソル行に書き込み位置のキャレットを描画
@@ -977,7 +1134,7 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
         app.ui_state.wrap.stopped_width = available_width;
     }
 
-    let lines = &app.ui_state.wrap.stopped_lines;
+    let lines = app.ui_state.wrap.stopped_lines.clone();
 
     if lines.is_empty() {
         ui.centered_and_justified(|ui| {
@@ -999,11 +1156,80 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
 
     ScrollArea::vertical()
         .auto_shrink([false, false])
+        .scroll_source(egui::scroll_area::ScrollSource { drag: false, ..Default::default() })
         .show(ui, |ui| {
-            let (rect, _) = ui.allocate_exact_size(
+            let (rect, area_resp) = ui.allocate_exact_size(
                 Vec2::new(available_width, total_height),
-                Sense::hover(),
+                Sense::click_and_drag(),
             );
+
+            // ドラッグ選択処理 — メッセージスロット上のみヒット
+            let hit_slot_match = |pos: egui::Pos2| -> Option<usize> {
+                if !rect.contains(pos) { return None; }
+                let row = ((pos.y - rect.min.y) / row_h).floor() as usize;
+                if row >= total_rows { return None; }
+                let local_x = pos.x - rect.min.x;
+                for slot in &lines[row] {
+                    if local_x >= slot.x && local_x <= slot.x + slot.width {
+                        if let WrapSlotKind::Message(idx) = &slot.kind {
+                            return Some(*idx);
+                        }
+                        return None; // IDLE上 → 選択しない
+                    }
+                }
+                None
+            };
+
+            if area_resp.double_clicked() {
+                if let Some(pos) = area_resp.interact_pointer_pos() {
+                    if let Some(mi) = hit_slot_match(pos) {
+                        toggle_idx = Some(mi);
+                    }
+                }
+            } else if area_resp.clicked() {
+                if let Some(pos) = area_resp.interact_pointer_pos() {
+                    if let Some(mi) = hit_slot_match(pos) {
+                        let shift = ui.input(|i| i.modifiers.shift);
+                        if shift {
+                            app.ui_state.protocol_selection.extend(mi);
+                        } else {
+                            app.ui_state.protocol_selection.start(mi);
+                            }
+                    }
+                }
+            }
+            if area_resp.drag_started_by(egui::PointerButton::Primary) {
+                if let Some(pos) = area_resp.interact_pointer_pos() {
+                    if let Some(mi) = hit_slot_match(pos) {
+                        app.ui_state.protocol_selection.start(mi);
+                    }
+                }
+            }
+            if area_resp.dragged_by(egui::PointerButton::Primary) {
+                if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+                    if let Some(mi) = hit_slot_match(pos) {
+                        app.ui_state.protocol_selection.extend(mi);
+                    }
+                }
+            }
+
+            // 右クリックコンテキストメニュー
+            if app.ui_state.protocol_selection.range().is_some() {
+                let copy_label = app.t.copy;
+                let copy_text = app.loaded_protocol.as_ref().map(|proto| {
+                    let (lo, hi) = app.ui_state.protocol_selection.range().unwrap();
+                    let indices: Vec<usize> = (lo..=hi).collect();
+                    selection::format_protocol_copy(&app.protocol_state.matches, proto, &indices)
+                });
+                area_resp.context_menu(|ui| {
+                    if let Some(text) = &copy_text {
+                        if !text.is_empty() && ui.button(copy_label).clicked() {
+                            ui.ctx().copy_text(text.clone());
+                            ui.close();
+                        }
+                    }
+                });
+            }
 
             let clip = ui.clip_rect();
             let visible_top = (clip.min.y - rect.min.y).max(0.0);
@@ -1026,9 +1252,7 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                     ui.scroll_to_rect(row_rect, Some(Align::Center));
                 }
 
-                if let Some(idx) = paint_wrap_slots(ui, &painter, app, &lines[row], rect.min.x, &row_rect, row_h, "wrap_stopped") {
-                    toggle_idx = Some(idx);
-                }
+                paint_wrap_slots(&painter, app, &lines[row], rect.min.x, &row_rect, row_h);
             }
         });
 

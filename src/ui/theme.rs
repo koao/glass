@@ -76,3 +76,7 @@ pub const PROTO_SEARCH_CURRENT_BG: Color32 = Color32::from_rgb(50, 80, 50);
 pub const PROTO_SEARCH_HIGHLIGHT_BORDER: Color32 = Color32::from_rgb(180, 170, 80);
 /// 現在ヒットpill枠線（Wrap用）
 pub const PROTO_SEARCH_CURRENT_BORDER: Color32 = Color32::from_rgb(100, 200, 120);
+
+// --- 選択範囲 ---
+/// 選択範囲背景（半透明ブルー）
+pub const SELECTION_BG: Color32 = Color32::from_rgba_premultiplied(80, 120, 200, 60);

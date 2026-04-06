@@ -18,6 +18,7 @@ A half-duplex serial monitor for Windows, built with Rust and egui.
 - **Dark theme** — eye-friendly for long monitoring sessions
 - **Error tracking** — framing, overrun, and parity error counts
 - **Protocol definition** — TOML-based protocol definitions for automatic frame extraction and message decoding
+- **Selection & Copy** — select ranges in monitor or protocol views, copy via Ctrl+C or right-click menu (ASCII, HEX, binary formats)
 
 ## Protocol Definition
 
@@ -86,7 +87,10 @@ cargo run --release
    - ASCII text: `OK`
    - Mixed: `OK$0D$0A`
 5. **Pause** to freeze the display while continuing to buffer data
-6. **Save** to export captured data as `.glm`, or **Load** to import a previous session
+6. Select a range by **click & drag**, then **Ctrl+C** or **right-click → Copy** to copy to clipboard
+   - Monitor: choose ASCII, HEX, or binary format from the context menu
+   - Protocol: click / Shift+click / drag to select messages; double-click to open details
+7. **Save** to export captured data as `.glm`, or **Load** to import a previous session
 
 ## File Format (.glm)
 

@@ -121,6 +121,12 @@ pub struct Texts {
     pub protocol_search_help_hex: &'static str,
     pub protocol_search_help_quote: &'static str,
 
+    // -- コピーメニュー --
+    pub copy_mixed: &'static str,
+    pub copy_hex: &'static str,
+    pub copy_binary: &'static str,
+    pub copy: &'static str,
+
     // -- app エラー --
     pub err_no_port: &'static str,
     pub err_port_open: &'static str,
@@ -218,6 +224,12 @@ const JA: Texts = Texts {
     protocol_search_help_hex: "$XX — HEXバイトパターン（例: $02$03）",
     protocol_search_help_quote: "\"...\" — スペースを含む語をまとめる",
 
+    // コピーメニュー
+    copy_mixed: "コピー（ASCII: $05OK）",
+    copy_hex: "コピー（HEX: $05$4F$4B）",
+    copy_binary: "コピー（バイナリ）",
+    copy: "コピー",
+
     // app エラー
     err_no_port: "COMポートを選択してください",
     err_port_open: "ポートオープン失敗",
@@ -314,6 +326,12 @@ const EN: Texts = Texts {
     protocol_search_help_or: "OR — contains either",
     protocol_search_help_hex: "$XX — HEX byte pattern (e.g. $02$03)",
     protocol_search_help_quote: "\"...\" — group words with spaces",
+
+    // コピーメニュー
+    copy_mixed: "Copy (ASCII: $05OK)",
+    copy_hex: "Copy (HEX: $05$4F$4B)",
+    copy_binary: "Copy (Binary)",
+    copy: "Copy",
 
     // app エラー
     err_no_port: "Please select a COM port",

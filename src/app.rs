@@ -22,6 +22,7 @@ use crate::settings::AppSettings;
 use crate::ui;
 use crate::ui::search::SearchState;
 use crate::ui::protocol_search::ProtocolSearchState;
+use crate::ui::selection::Selection;
 
 /// 表示モード
 #[derive(Clone, Debug, PartialEq)]
@@ -173,6 +174,10 @@ pub struct UiState {
     pub show_protocol_search_help: bool,
     /// エラーメッセージダイアログ
     pub error_message: Option<String>,
+    /// モニタビューの選択状態
+    pub monitor_selection: Selection,
+    /// プロトコルパネルの選択状態
+    pub protocol_selection: Selection,
 }
 
 /// アプリケーション本体
@@ -303,6 +308,8 @@ impl GlassApp {
                 show_protocol_search_bar: settings.show_protocol_search_bar,
                 show_protocol_search_help: false,
                 error_message: None,
+                monitor_selection: Selection::new(),
+                protocol_selection: Selection::new(),
             },
             lang,
             t: lang.texts(),
@@ -453,8 +460,47 @@ impl GlassApp {
         self.protocol_state.clear();
         self.ui_state.protocol_expanded.clear();
         self.ui_state.wrap.reset();
+        self.ui_state.monitor_selection.clear();
+        self.ui_state.protocol_selection.clear();
         self.last_byte_time = None;
         self.search = SearchState::new();
+    }
+
+    /// 選択範囲をクリップボードにコピー（混合形式をデフォルト使用）
+    pub fn copy_selection(&mut self, ui: &mut egui::Ui) {
+        match self.active_tab {
+            ViewTab::Monitor => {
+                if let Some(range) = self.ui_state.monitor_selection.range() {
+                    let text = ui::selection::format_monitor_mixed(
+                        self.display_buffer.cells(),
+                        range,
+                    );
+                    if !text.is_empty() {
+                        ui.ctx().copy_text(text);
+                    }
+                }
+            }
+            ViewTab::Protocol => {
+                self.copy_protocol_selection(ui);
+            }
+        }
+    }
+
+    /// プロトコル選択範囲をコピー
+    pub fn copy_protocol_selection(&mut self, ui: &mut egui::Ui) {
+        if let Some((lo, hi)) = self.ui_state.protocol_selection.range() {
+            if let Some(proto) = &self.loaded_protocol {
+                let indices: Vec<usize> = (lo..=hi).collect();
+                let text = ui::selection::format_protocol_copy(
+                    &self.protocol_state.matches,
+                    proto,
+                    &indices,
+                );
+                if !text.is_empty() {
+                    ui.ctx().copy_text(text);
+                }
+            }
+        }
     }
 
     /// バッファをファイルに保存
@@ -616,6 +662,19 @@ impl eframe::App for GlassApp {
                 i.key_pressed(egui::Key::Escape),
             )
         });
+        // Ctrl+C: 選択範囲をコピー（Event::Copyで検出）
+        {
+            let has_monitor_sel = self.ui_state.monitor_selection.range().is_some();
+            let has_proto_sel = self.ui_state.protocol_selection.range().is_some();
+            if has_monitor_sel || has_proto_sel {
+                let copy_event = ui.input(|i| {
+                    i.events.iter().any(|e| matches!(e, egui::Event::Copy))
+                });
+                if copy_event {
+                    self.copy_selection(ui);
+                }
+            }
+        }
         if ctrl_f {
             match self.active_tab {
                 ViewTab::Monitor => {
