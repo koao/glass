@@ -4,11 +4,13 @@ use egui_phosphor::regular;
 use crate::app::{GlassApp, MonitorState, SettingsTab};
 use crate::i18n::Language;
 use crate::serial::config::{BAUD_RATES, DATA_BITS, ParitySetting, StopBitsSetting};
+use crate::settings::MonitorColors;
 use crate::ui::theme;
 
 /// 設定ウィンドウ描画（中央配置・タブ付き）
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
-    let mut open = app.ui_state.show_settings_window;
+    let was_open = app.ui_state.show_settings_window;
+    let mut open = was_open;
 
     let screen_rect = ui.ctx().content_rect();
     let window_size = egui::vec2(360.0, 340.0);
@@ -36,16 +38,27 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                     SettingsTab::Display,
                     app.t.tab_display,
                 );
+                ui.selectable_value(
+                    &mut app.ui_state.settings_tab,
+                    SettingsTab::Colors,
+                    app.t.tab_colors,
+                );
             });
             ui.separator();
 
             match app.ui_state.settings_tab {
                 SettingsTab::Serial => draw_serial_tab(ui, app),
                 SettingsTab::Display => draw_display_tab(ui, app),
+                SettingsTab::Colors => draw_colors_tab(ui, app),
             }
         });
 
     app.ui_state.show_settings_window = open;
+
+    // 設定ウィンドウが閉じられたとき設定を保存
+    if was_open && !open {
+        app.save_settings();
+    }
 }
 
 /// ラベル＋フル幅ComboBoxを描画するヘルパー
@@ -173,4 +186,37 @@ fn draw_display_tab(ui: &mut Ui, app: &mut GlassApp) {
         theme::TEXT_MUTED,
         app.t.idle_desc,
     );
+}
+
+/// 配色設定タブ
+fn draw_colors_tab(ui: &mut Ui, app: &mut GlassApp) {
+    ui.add_space(4.0);
+
+    color_row(ui, app.t.color_data, &mut app.monitor_colors.data_color);
+    color_row(ui, app.t.color_control, &mut app.monitor_colors.control_color);
+    color_row(ui, app.t.color_high_byte, &mut app.monitor_colors.high_byte_color);
+    color_row(ui, app.t.color_idle_text, &mut app.monitor_colors.idle_text);
+    color_row(ui, app.t.color_idle_bg, &mut app.monitor_colors.idle_bg);
+
+    ui.add_space(12.0);
+    if ui.button(app.t.color_reset).clicked() {
+        app.monitor_colors = MonitorColors::default();
+    }
+}
+
+/// 色設定行: ラベル＋カラーピッカーボタン
+fn color_row(ui: &mut Ui, label: &str, rgb: &mut [u8; 3]) {
+    ui.horizontal(|ui| {
+        let mut color = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+        egui::color_picker::color_edit_button_srgba(
+            ui,
+            &mut color,
+            egui::color_picker::Alpha::Opaque,
+        );
+        if [color.r(), color.g(), color.b()] != *rgb {
+            *rgb = [color.r(), color.g(), color.b()];
+        }
+        ui.label(label);
+    });
+    ui.add_space(4.0);
 }

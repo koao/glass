@@ -94,6 +94,15 @@ pub struct Texts {
     pub idle_desc: &'static str,
     pub language: &'static str,
 
+    // -- settings_window (配色タブ) --
+    pub tab_colors: &'static str,
+    pub color_data: &'static str,
+    pub color_control: &'static str,
+    pub color_high_byte: &'static str,
+    pub color_idle_text: &'static str,
+    pub color_idle_bg: &'static str,
+    pub color_reset: &'static str,
+
     // -- monitor_view --
     pub no_data: &'static str,
 
@@ -201,6 +210,15 @@ const JA: Texts = Texts {
     idle_desc: "バイト間の無通信時間がこの値を超えるとIDLEマーカーを表示",
     language: "言語:",
 
+    // settings_window (配色タブ)
+    tab_colors: "配色",
+    color_data: "データバイト (印字可能文字)",
+    color_control: "制御コード",
+    color_high_byte: "高バイト (0x80-0xFF)",
+    color_idle_text: "IDLEテキスト",
+    color_idle_bg: "IDLE背景",
+    color_reset: "デフォルトに戻す",
+
     // monitor_view
     no_data: "データなし — COMポートを選択して開始してください",
 
@@ -307,6 +325,15 @@ const EN: Texts = Texts {
     idle_threshold: "IDLE threshold:",
     idle_desc: "Shows IDLE marker when silence between bytes exceeds this value",
     language: "Language:",
+
+    // settings_window (配色タブ)
+    tab_colors: "Colors",
+    color_data: "Data byte (printable)",
+    color_control: "Control code",
+    color_high_byte: "High byte (0x80-0xFF)",
+    color_idle_text: "IDLE text",
+    color_idle_bg: "IDLE background",
+    color_reset: "Reset to defaults",
 
     // monitor_view
     no_data: "No data — select a COM port and start",

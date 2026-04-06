@@ -18,6 +18,7 @@ use crate::protocol::definition::{self, ProtocolFile};
 use crate::protocol::engine::{ProtocolEngine, ProtocolState};
 use crate::serial::config::SerialConfig;
 use crate::serial::worker;
+use crate::settings::MonitorColors;
 use crate::settings::AppSettings;
 use crate::ui;
 use crate::ui::search::SearchState;
@@ -129,6 +130,7 @@ pub enum MonitorState {
 pub enum SettingsTab {
     Serial,
     Display,
+    Colors,
 }
 
 /// メイン表示タブ
@@ -212,6 +214,8 @@ pub struct GlassApp {
     pub protocol_files: Vec<(PathBuf, String)>,
     /// プロトコル検索状態
     pub protocol_search: ProtocolSearchState,
+    /// モニタービュー文字色設定
+    pub monitor_colors: MonitorColors,
 }
 
 impl GlassApp {
@@ -322,6 +326,7 @@ impl GlassApp {
             loaded_protocol,
             protocol_files,
             protocol_search: ProtocolSearchState::new(),
+            monitor_colors: settings.monitor_colors,
         };
         app.refresh_ports();
         app
@@ -621,6 +626,7 @@ impl GlassApp {
                 .and_then(|idx| self.protocol_files.get(idx))
                 .map(|(path, _)| path.file_name().unwrap_or_default().to_string_lossy().to_string())
                 .unwrap_or_default(),
+            monitor_colors: self.monitor_colors.clone(),
         };
         settings.save();
     }

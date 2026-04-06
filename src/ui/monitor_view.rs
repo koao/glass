@@ -3,6 +3,7 @@ use egui::epaint::TextShape;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
+use crate::settings::MonitorColors;
 use crate::ui::search::SearchState;
 use crate::ui::selection;
 use crate::ui::theme;
@@ -278,7 +279,7 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
                 painter.rect_filled(cr, 0.0, bg);
             }
 
-            draw_cell(&painter, cr, cell, &app.display_mode);
+            draw_cell(&painter, cr, cell, &app.display_mode, &app.monitor_colors);
 
             // 選択ハイライト（半透明オーバーレイ）
             if app.ui_state.monitor_selection.contains(disp_idx) {
@@ -300,7 +301,7 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
                 for (i, ch) in live_text.chars().enumerate() {
                     let idx = (buf_len + i) % total_cells;
                     let cr = cell_rect(rect, idx, cols, cell_w, cell_h);
-                    draw_idle_char(&painter, cr, ch);
+                    draw_idle_char(&painter, cr, ch, &app.monitor_colors);
                 }
                 cursor_pos = (buf_len + live_text.len()) % total_cells;
             }
@@ -366,7 +367,7 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
                     painter.rect_filled(cr, 0.0, bg);
                 }
 
-                draw_cell(&painter, cr, cell, &app.display_mode);
+                draw_cell(&painter, cr, cell, &app.display_mode, &app.monitor_colors);
 
                 // 選択ハイライト（半透明オーバーレイ）
                 if app.ui_state.monitor_selection.contains(i) {
@@ -383,27 +384,27 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
 }
 
 /// セルを1つ描画
-fn draw_cell(painter: &egui::Painter, rect: Rect, cell: &DisplayCell, mode: &DisplayMode) {
+fn draw_cell(painter: &egui::Painter, rect: Rect, cell: &DisplayCell, mode: &DisplayMode, colors: &MonitorColors) {
     match cell {
         DisplayCell::Data(byte) => {
-            draw_data_byte(painter, rect, *byte, mode);
+            draw_data_byte(painter, rect, *byte, mode, colors);
         }
         DisplayCell::IdleChar(ch) => {
-            draw_idle_char(painter, rect, *ch);
+            draw_idle_char(painter, rect, *ch, colors);
         }
     }
 }
 
 /// IDLEカウンタ文字を描画（背景色で区別、縦積み表示）
-fn draw_idle_char(painter: &egui::Painter, rect: Rect, ch: char) {
-    painter.rect_filled(rect, 0.0, theme::IDLE_BG);
+fn draw_idle_char(painter: &egui::Painter, rect: Rect, ch: char, colors: &MonitorColors) {
+    painter.rect_filled(rect, 0.0, colors.idle_bg_color32());
     let font_id = FontId::monospace(MAIN_FONT_SIZE);
     painter.text(
         rect.center(),
         Align2::CENTER_CENTER,
         ch.to_string(),
         font_id,
-        theme::IDLE_TEXT,
+        colors.idle_text_color32(),
     );
 }
 
@@ -413,12 +414,12 @@ fn hex_label(byte: u8) -> String {
 }
 
 /// データバイトを描画
-fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayMode) {
+fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayMode, colors: &MonitorColors) {
     let rotated_font = FontId::monospace(ROTATED_FONT_SIZE);
 
     match mode {
         DisplayMode::Hex => {
-            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, theme::HIGH_BYTE_COLOR);
+            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, colors.high_byte_color32());
         }
         DisplayMode::Ascii => {
             if byte >= 0x21 && byte <= 0x7E {
@@ -428,15 +429,15 @@ fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayM
                     Align2::CENTER_CENTER,
                     String::from(byte as char),
                     font_id,
-                    theme::DATA_COLOR,
+                    colors.data_color32(),
                 );
             } else if byte <= 0x20 {
                 let name = CONTROL_CODES[byte as usize];
-                draw_rotated(painter, rect, name, &rotated_font, theme::CONTROL_COLOR);
+                draw_rotated(painter, rect, name, &rotated_font, colors.control_color32());
             } else if byte == 0x7F {
-                draw_rotated(painter, rect, "DEL", &rotated_font, theme::CONTROL_COLOR);
+                draw_rotated(painter, rect, "DEL", &rotated_font, colors.control_color32());
             } else {
-                draw_rotated(painter, rect, &hex_label(byte), &rotated_font, theme::HIGH_BYTE_COLOR);
+                draw_rotated(painter, rect, &hex_label(byte), &rotated_font, colors.high_byte_color32());
             }
         }
     }
