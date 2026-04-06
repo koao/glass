@@ -418,7 +418,7 @@ fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayM
 
     match mode {
         DisplayMode::Hex => {
-            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, theme::DATA_COLOR);
+            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, theme::HIGH_BYTE_COLOR);
         }
         DisplayMode::Ascii => {
             if byte >= 0x21 && byte <= 0x7E {
