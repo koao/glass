@@ -56,7 +56,10 @@ pub struct IdSelection {
 
 impl IdSelection {
     pub fn new() -> Self {
-        Self { anchor: None, cursor: None }
+        Self {
+            anchor: None,
+            cursor: None,
+        }
     }
 
     pub fn range(&self) -> Option<(u64, u64)> {
@@ -202,14 +205,16 @@ pub fn format_protocol_copy(
         }
 
         // HEXダンプ
-        let hex_dump = super::protocol_panel::extract_hex(
-            &matched.frame.bytes, 0, matched.frame.bytes.len(),
-        );
+        let hex_dump =
+            super::protocol_panel::extract_hex(&matched.frame.bytes, 0, matched.frame.bytes.len());
 
         if fields.is_empty() {
             out.push_str(&format!("[{:03}] {} | {}\n", idx, title, hex_dump));
         } else {
-            out.push_str(&format!("[{:03}] {}  {} | {}\n", idx, title, fields, hex_dump));
+            out.push_str(&format!(
+                "[{:03}] {}  {} | {}\n",
+                idx, title, fields, hex_dump
+            ));
         }
     }
     out

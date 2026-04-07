@@ -44,14 +44,23 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
         let btn_min = egui::vec2(80.0, 0.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if on_confirm.is_some() {
-                if ui.add(egui::Button::new(btn_yes).min_size(btn_min)).clicked() {
+                if ui
+                    .add(egui::Button::new(btn_yes).min_size(btn_min))
+                    .clicked()
+                {
                     confirmed = true;
                     close = true;
                 }
-                if ui.add(egui::Button::new(btn_no).min_size(btn_min)).clicked() {
+                if ui
+                    .add(egui::Button::new(btn_no).min_size(btn_min))
+                    .clicked()
+                {
                     close = true;
                 }
-            } else if ui.add(egui::Button::new(btn_ok).min_size(btn_min)).clicked() {
+            } else if ui
+                .add(egui::Button::new(btn_ok).min_size(btn_min))
+                .clicked()
+            {
                 close = true;
             }
         });

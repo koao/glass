@@ -81,7 +81,10 @@ impl FrameRule {
     /// パースして実行用構造体に変換
     pub fn parse(&self) -> Option<ParsedFrameRule> {
         let trigger = u8::from_str_radix(&self.trigger, 16).ok()?;
-        let end_byte = self.end.as_ref().and_then(|s| u8::from_str_radix(s, 16).ok());
+        let end_byte = self
+            .end
+            .as_ref()
+            .and_then(|s| u8::from_str_radix(s, 16).ok());
         Some(ParsedFrameRule {
             trigger,
             length: self.length,
@@ -151,14 +154,16 @@ pub struct FieldDef {
 
 /// 定義ファイルを1つ読み込み
 pub fn load_protocol(path: &Path) -> Result<ProtocolFile, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: {}", path.display(), e))?;
-    let mut proto: ProtocolFile = toml::from_str(&content)
-        .map_err(|e| format!("{}: {}", path.display(), e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("{}: {}", path.display(), e))?;
+    let mut proto: ProtocolFile =
+        toml::from_str(&content).map_err(|e| format!("{}: {}", path.display(), e))?;
     // 色 / first_byte をパースしてキャッシュ
     for msg in &mut proto.messages {
         msg.parsed_color = msg.color.as_deref().and_then(parse_hex_color);
-        msg.parsed_first_byte = msg.first_byte.as_deref()
+        msg.parsed_first_byte = msg
+            .first_byte
+            .as_deref()
             .and_then(|s| u8::from_str_radix(s, 16).ok());
     }
     Ok(proto)

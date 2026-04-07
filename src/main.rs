@@ -30,5 +30,9 @@ fn main() -> eframe::Result {
             .with_icon(std::sync::Arc::new(load_icon())),
         ..Default::default()
     };
-    eframe::run_native("Glass", options, Box::new(|cc| Ok(Box::new(app::GlassApp::new(cc)))))
+    eframe::run_native(
+        "Glass",
+        options,
+        Box::new(|cc| Ok(Box::new(app::GlassApp::new(cc)))),
+    )
 }

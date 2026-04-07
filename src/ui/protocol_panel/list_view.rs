@@ -7,8 +7,8 @@ use crate::ui::selection;
 use crate::ui::theme;
 
 use super::{
-    draw_expanded_windows, extract_ascii, handle_expand_toggle, paint_idle_text, RowEntry, FONT,
-    MONO_FONT, ROW_HEIGHT,
+    FONT, MONO_FONT, ROW_HEIGHT, RowEntry, draw_expanded_windows, extract_ascii,
+    handle_expand_toggle, paint_idle_text,
 };
 
 /// マッチ結果一覧描画（仮想スクロール）
@@ -45,20 +45,25 @@ pub(super) fn draw_match_list(
         draw_last = total_rows;
     }
 
-    let sense = if latest_only { Sense::hover() } else { Sense::click_and_drag() };
-    let (rect, area_resp) = ui.allocate_exact_size(
-        Vec2::new(available_width, total_height),
-        sense,
-    );
+    let sense = if latest_only {
+        Sense::hover()
+    } else {
+        Sense::click_and_drag()
+    };
+    let (rect, area_resp) = ui.allocate_exact_size(Vec2::new(available_width, total_height), sense);
 
     let mut toggle_id: Option<u64> = None;
 
     if !latest_only {
         let matches_ref0 = &app.protocol_state.matches;
         let hit_row_match = |pos: egui::Pos2| -> Option<u64> {
-            if !rect.contains(pos) { return None; }
+            if !rect.contains(pos) {
+                return None;
+            }
             let row_idx = ((pos.y - rect.min.y) / row_h).floor() as usize;
-            if row_idx >= total_rows { return None; }
+            if row_idx >= total_rows {
+                return None;
+            }
             match &rows[row_idx] {
                 RowEntry::Message(idx, _) => matches_ref0.get(*idx).map(|m| m.id),
                 RowEntry::Idle(_) => None,
@@ -104,7 +109,9 @@ pub(super) fn draw_match_list(
             let has_seq = proto.protocol.sequence.is_some();
             let (lo_id, hi_id) = app.ui_state.protocol_selection.range().unwrap();
             let lo = app.protocol_state.position_by_id(lo_id).unwrap_or(0);
-            let hi = app.protocol_state.position_by_id(hi_id)
+            let hi = app
+                .protocol_state
+                .position_by_id(hi_id)
                 .unwrap_or_else(|| app.protocol_state.matches.len().saturating_sub(1));
             let matches_ref = &app.protocol_state.matches;
             area_resp.context_menu(|ui| {
@@ -117,7 +124,8 @@ pub(super) fn draw_match_list(
                         0 => {
                             if lo <= hi && !matches_ref.is_empty() {
                                 let indices: Vec<usize> = (lo..=hi).collect();
-                                let text = selection::format_protocol_copy(matches_ref, proto, &indices);
+                                let text =
+                                    selection::format_protocol_copy(matches_ref, proto, &indices);
                                 if !text.is_empty() {
                                     ui.ctx().copy_text(text);
                                 }
@@ -207,32 +215,52 @@ pub(super) fn draw_match_list(
 
                         let title = &msg_def.title;
                         let title_color = msg_def.parsed_color.unwrap_or(egui::Color32::WHITE);
-                        let g = painter.layout_no_wrap(title.to_string(), font.clone(), title_color);
+                        let g =
+                            painter.layout_no_wrap(title.to_string(), font.clone(), title_color);
                         let w = g.rect.width();
-                        painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, title_color);
+                        painter.galley(
+                            egui::pos2(cur_x, center_y - g.rect.height() / 2.0),
+                            g,
+                            title_color,
+                        );
                         cur_x += w + 8.0;
 
                         for field in msg_def.fields.iter().filter(|f| f.inline) {
                             let name = &field.name;
-                            let ascii = extract_ascii(&matched.frame.bytes, field.offset, field.size);
+                            let ascii =
+                                extract_ascii(&matched.frame.bytes, field.offset, field.size);
                             let text = format!("{}:{}", name, ascii);
-                            let g = painter.layout_no_wrap(text, mono_font.clone(), theme::TEXT_MUTED);
+                            let g =
+                                painter.layout_no_wrap(text, mono_font.clone(), theme::TEXT_MUTED);
                             let w = g.rect.width();
-                            painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, theme::TEXT_MUTED);
+                            painter.galley(
+                                egui::pos2(cur_x, center_y - g.rect.height() / 2.0),
+                                g,
+                                theme::TEXT_MUTED,
+                            );
                             cur_x += w + 8.0;
                         }
                     }
                     None => {
                         let text = format!("{} {}", regular::QUESTION, app.t.protocol_unmatched);
-                        let g = painter.layout_no_wrap(text, font.clone(), theme::PROTOCOL_UNMATCHED);
-                        painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, theme::PROTOCOL_UNMATCHED);
+                        let g =
+                            painter.layout_no_wrap(text, font.clone(), theme::PROTOCOL_UNMATCHED);
+                        painter.galley(
+                            egui::pos2(cur_x, center_y - g.rect.height() / 2.0),
+                            g,
+                            theme::PROTOCOL_UNMATCHED,
+                        );
                     }
                 }
 
                 let size_text = format!("{}B", matched.frame.bytes.len());
                 let g = painter.layout_no_wrap(size_text, mono_font.clone(), theme::TEXT_MUTED);
                 let right_x = row_rect.max.x - g.rect.width() - 8.0;
-                painter.galley(egui::pos2(right_x, center_y - g.rect.height() / 2.0), g, theme::TEXT_MUTED);
+                painter.galley(
+                    egui::pos2(right_x, center_y - g.rect.height() / 2.0),
+                    g,
+                    theme::TEXT_MUTED,
+                );
 
                 if app.ui_state.protocol_selection.contains(match_id) {
                     painter.rect_filled(row_rect, 0.0, theme::SELECTION_BG);

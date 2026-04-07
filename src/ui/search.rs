@@ -196,7 +196,8 @@ fn parse_mixed_pattern(input: &str) -> Vec<u8> {
     let chars: Vec<char> = input.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '$' && i + 2 < chars.len()
+        if chars[i] == '$'
+            && i + 2 < chars.len()
             && chars[i + 1].is_ascii_hexdigit()
             && chars[i + 2].is_ascii_hexdigit()
         {

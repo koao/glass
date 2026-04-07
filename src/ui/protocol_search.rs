@@ -20,11 +20,17 @@ impl SearchExpr {
         match self {
             SearchExpr::Term(text, hex_pat) => {
                 let text_hit = searchable_lower.contains(text.as_str());
-                let byte_hit = hex_pat.as_ref().map_or(false, |pat| contains_bytes(frame_bytes, pat));
+                let byte_hit = hex_pat
+                    .as_ref()
+                    .map_or(false, |pat| contains_bytes(frame_bytes, pat));
                 text_hit || byte_hit
             }
-            SearchExpr::And(exprs) => exprs.iter().all(|e| e.matches(searchable_lower, frame_bytes)),
-            SearchExpr::Or(exprs) => exprs.iter().any(|e| e.matches(searchable_lower, frame_bytes)),
+            SearchExpr::And(exprs) => exprs
+                .iter()
+                .all(|e| e.matches(searchable_lower, frame_bytes)),
+            SearchExpr::Or(exprs) => exprs
+                .iter()
+                .any(|e| e.matches(searchable_lower, frame_bytes)),
         }
     }
 }
@@ -66,7 +72,9 @@ fn parse_query(input: &str) -> Option<SearchExpr> {
             .filter(|t| !matches!(t, Token::And))
             .filter_map(|t| {
                 if let Token::Text(s) = t {
-                    if s.is_empty() { return None; }
+                    if s.is_empty() {
+                        return None;
+                    }
                     let lower = s.to_lowercase();
                     let hex_pat = parse_hex_pattern(s);
                     Some(SearchExpr::Term(lower, hex_pat))

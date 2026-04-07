@@ -51,7 +51,10 @@ pub fn show(ui: &mut Ui, items: &[MenuItem]) -> Option<usize> {
     const ICON_PAD: &str = "      ";
 
     // ラベルを一度だけ生成して測定と描画で使い回す
-    let labels: Vec<String> = items.iter().map(|i| build_label(i, any_icon, ICON_PAD)).collect();
+    let labels: Vec<String> = items
+        .iter()
+        .map(|i| build_label(i, any_icon, ICON_PAD))
+        .collect();
 
     let font_id = egui::TextStyle::Button.resolve(ui.style());
     let painter = ui.painter().clone();
@@ -61,7 +64,8 @@ pub fn show(ui: &mut Ui, items: &[MenuItem]) -> Option<usize> {
         let galley = painter.layout_no_wrap(label.clone(), font_id.clone(), egui::Color32::WHITE);
         max_label_w = max_label_w.max(galley.rect.width());
         if let Some(sc) = item.shortcut {
-            let galley = painter.layout_no_wrap(sc.to_string(), font_id.clone(), egui::Color32::WHITE);
+            let galley =
+                painter.layout_no_wrap(sc.to_string(), font_id.clone(), egui::Color32::WHITE);
             max_shortcut_w = max_shortcut_w.max(galley.rect.width());
         }
     }

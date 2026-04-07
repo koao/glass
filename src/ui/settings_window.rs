@@ -111,11 +111,19 @@ fn draw_serial_tab(ui: &mut Ui, app: &mut GlassApp) {
                 .selected_text(&port_label)
                 .show_ui(ui, |ui| {
                     for (value, label) in &port_items {
-                        ui.selectable_value(&mut app.config.port_name, value.clone(), label.as_str());
+                        ui.selectable_value(
+                            &mut app.config.port_name,
+                            value.clone(),
+                            label.as_str(),
+                        );
                     }
                 });
         });
-        if ui.button(regular::ARROWS_CLOCKWISE).on_hover_text(app.t.port_refresh).clicked() {
+        if ui
+            .button(regular::ARROWS_CLOCKWISE)
+            .on_hover_text(app.t.port_refresh)
+            .clicked()
+        {
             app.refresh_ports();
         }
     });
@@ -124,35 +132,64 @@ fn draw_serial_tab(ui: &mut Ui, app: &mut GlassApp) {
     let baud_items: Vec<_> = BAUD_RATES.iter().map(|&r| (r, r.to_string())).collect();
     let baud_text = app.config.baud_rate.to_string();
     combo_row(
-        ui, "baud_rate", app.t.baud_rate, is_stopped,
-        &mut app.config.baud_rate, &baud_items, &baud_text,
+        ui,
+        "baud_rate",
+        app.t.baud_rate,
+        is_stopped,
+        &mut app.config.baud_rate,
+        &baud_items,
+        &baud_text,
     );
 
     let data_items: Vec<_> = DATA_BITS.iter().map(|&b| (b, b.to_string())).collect();
     let data_text = app.config.data_bits.to_string();
     combo_row(
-        ui, "data_bits", app.t.data_bits, is_stopped,
-        &mut app.config.data_bits, &data_items, &data_text,
+        ui,
+        "data_bits",
+        app.t.data_bits,
+        is_stopped,
+        &mut app.config.data_bits,
+        &data_items,
+        &data_text,
     );
 
-    let parity_items: Vec<_> = ParitySetting::ALL.iter().map(|p| (p.clone(), p.label().to_string())).collect();
+    let parity_items: Vec<_> = ParitySetting::ALL
+        .iter()
+        .map(|p| (p.clone(), p.label().to_string()))
+        .collect();
     let parity_text = app.config.parity.label().to_string();
     combo_row(
-        ui, "parity", app.t.parity, is_stopped,
-        &mut app.config.parity, &parity_items, &parity_text,
+        ui,
+        "parity",
+        app.t.parity,
+        is_stopped,
+        &mut app.config.parity,
+        &parity_items,
+        &parity_text,
     );
 
-    let stop_items: Vec<_> = StopBitsSetting::ALL.iter().map(|s| (s.clone(), s.label().to_string())).collect();
+    let stop_items: Vec<_> = StopBitsSetting::ALL
+        .iter()
+        .map(|s| (s.clone(), s.label().to_string()))
+        .collect();
     let stop_text = app.config.stop_bits.label().to_string();
     combo_row(
-        ui, "stop_bits", app.t.stop_bits, is_stopped,
-        &mut app.config.stop_bits, &stop_items, &stop_text,
+        ui,
+        "stop_bits",
+        app.t.stop_bits,
+        is_stopped,
+        &mut app.config.stop_bits,
+        &stop_items,
+        &stop_text,
     );
 
     ui.add_space(4.0);
 
     if !is_stopped {
-        ui.colored_label(theme::TEXT_MUTED, format!("{} {}", regular::WARNING, app.t.settings_stopped_msg));
+        ui.colored_label(
+            theme::TEXT_MUTED,
+            format!("{} {}", regular::WARNING, app.t.settings_stopped_msg),
+        );
     }
 }
 
@@ -167,7 +204,10 @@ fn draw_display_tab(ui: &mut Ui, app: &mut GlassApp) {
         .selected_text(app.lang.label())
         .show_ui(ui, |ui| {
             for &lang in Language::ALL {
-                if ui.selectable_value(&mut app.lang, lang, lang.label()).changed() {
+                if ui
+                    .selectable_value(&mut app.lang, lang, lang.label())
+                    .changed()
+                {
                     app.t = app.lang.texts();
                 }
             }
@@ -182,10 +222,7 @@ fn draw_display_tab(ui: &mut Ui, app: &mut GlassApp) {
             .suffix(" ms"),
     );
     ui.add_space(4.0);
-    ui.colored_label(
-        theme::TEXT_MUTED,
-        app.t.idle_desc,
-    );
+    ui.colored_label(theme::TEXT_MUTED, app.t.idle_desc);
 }
 
 /// 配色設定タブ
@@ -193,8 +230,16 @@ fn draw_colors_tab(ui: &mut Ui, app: &mut GlassApp) {
     ui.add_space(4.0);
 
     color_row(ui, app.t.color_data, &mut app.monitor_colors.data_color);
-    color_row(ui, app.t.color_control, &mut app.monitor_colors.control_color);
-    color_row(ui, app.t.color_high_byte, &mut app.monitor_colors.high_byte_color);
+    color_row(
+        ui,
+        app.t.color_control,
+        &mut app.monitor_colors.control_color,
+    );
+    color_row(
+        ui,
+        app.t.color_high_byte,
+        &mut app.monitor_colors.high_byte_color,
+    );
     color_row(ui, app.t.color_idle_text, &mut app.monitor_colors.idle_text);
     color_row(ui, app.t.color_idle_bg, &mut app.monitor_colors.idle_bg);
 

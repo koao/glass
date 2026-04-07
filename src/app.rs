@@ -18,11 +18,11 @@ use crate::protocol::definition::{self, ProtocolFile};
 use crate::protocol::engine::{ProtocolEngine, ProtocolState};
 use crate::serial::config::SerialConfig;
 use crate::serial::worker;
-use crate::settings::MonitorColors;
 use crate::settings::AppSettings;
+use crate::settings::MonitorColors;
 use crate::ui;
-use crate::ui::search::SearchState;
 use crate::ui::protocol_search::ProtocolSearchState;
+use crate::ui::search::SearchState;
 use crate::ui::selection::{IdSelection, Selection};
 
 /// ダイアログの種類
@@ -35,10 +35,7 @@ pub enum DialogKind {
         on_confirm: ConfirmAction,
     },
     /// 情報ダイアログ（OKのみ）
-    Info {
-        title: String,
-        message: String,
-    },
+    Info { title: String, message: String },
 }
 
 /// 確認ダイアログで「はい」を押した時のアクション
@@ -454,7 +451,8 @@ impl GlassApp {
         self.display_buffer
             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
         if let Some(engine) = &self.protocol_engine {
-            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+            self.protocol_state
+                .sync_entries(self.buffer.entries(), engine);
         }
         self.state = MonitorState::Running;
     }
@@ -472,7 +470,8 @@ impl GlassApp {
         self.display_buffer
             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
         if let Some(engine) = &self.protocol_engine {
-            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+            self.protocol_state
+                .sync_entries(self.buffer.entries(), engine);
             self.protocol_state.flush(engine);
         }
     }
@@ -525,10 +524,8 @@ impl GlassApp {
         match self.active_tab {
             ViewTab::Monitor => {
                 if let Some(range) = self.ui_state.monitor_selection.range() {
-                    let text = ui::selection::format_monitor_mixed(
-                        self.display_buffer.cells(),
-                        range,
-                    );
+                    let text =
+                        ui::selection::format_monitor_mixed(self.display_buffer.cells(), range);
                     if !text.is_empty() {
                         ui.ctx().copy_text(text);
                     }
@@ -544,9 +541,10 @@ impl GlassApp {
     pub fn copy_protocol_selection(&mut self, ui: &mut egui::Ui) {
         if let Some((lo_id, hi_id)) = self.ui_state.protocol_selection.range() {
             if let Some(proto) = &self.loaded_protocol {
-                let lo = self.protocol_state.position_by_id(lo_id)
-                    .unwrap_or(0);
-                let hi = self.protocol_state.position_by_id(hi_id)
+                let lo = self.protocol_state.position_by_id(lo_id).unwrap_or(0);
+                let hi = self
+                    .protocol_state
+                    .position_by_id(hi_id)
                     .unwrap_or_else(|| self.protocol_state.matches.len().saturating_sub(1));
                 if lo > hi || self.protocol_state.matches.is_empty() {
                     return;
@@ -600,7 +598,8 @@ impl GlassApp {
                             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
                         self.protocol_state.clear();
                         if let Some(engine) = &self.protocol_engine {
-                            self.protocol_state.sync_entries(self.buffer.entries(), engine);
+                            self.protocol_state
+                                .sync_entries(self.buffer.entries(), engine);
                             self.protocol_state.flush(engine);
                         }
                         self.search = SearchState::new();
@@ -657,9 +656,16 @@ impl GlassApp {
                 ProtocolViewMode::Wrap => "wrap".to_string(),
                 _ => "list".to_string(),
             },
-            selected_protocol: self.ui_state.selected_protocol_idx
+            selected_protocol: self
+                .ui_state
+                .selected_protocol_idx
                 .and_then(|idx| self.protocol_files.get(idx))
-                .map(|(path, _)| path.file_name().unwrap_or_default().to_string_lossy().to_string())
+                .map(|(path, _)| {
+                    path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string()
+                })
                 .unwrap_or_default(),
             monitor_colors: self.monitor_colors.clone(),
         };
@@ -671,9 +677,11 @@ impl eframe::App for GlassApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // ウィンドウ最小サイズを設定（NativeOptions だけでは効かないため初回のみ送信）
         if !self.ui_state.min_size_applied {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::MinInnerSize(
-                egui::vec2(MIN_WINDOW_SIZE[0], MIN_WINDOW_SIZE[1]),
-            ));
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::MinInnerSize(egui::vec2(
+                    MIN_WINDOW_SIZE[0],
+                    MIN_WINDOW_SIZE[1],
+                )));
             self.ui_state.min_size_applied = true;
         }
 
@@ -700,7 +708,8 @@ impl eframe::App for GlassApp {
         // プロトコルエンジンの増分同期（一時停止中はスキップ）
         if self.state != MonitorState::Paused {
             if let Some(engine) = &self.protocol_engine {
-                self.protocol_state.sync_entries(self.buffer.entries(), engine);
+                self.protocol_state
+                    .sync_entries(self.buffer.entries(), engine);
             }
         }
 
@@ -732,9 +741,8 @@ impl eframe::App for GlassApp {
             let has_monitor_sel = self.ui_state.monitor_selection.range().is_some();
             let has_proto_sel = self.ui_state.protocol_selection.range().is_some();
             if has_monitor_sel || has_proto_sel {
-                let copy_event = ui.input(|i| {
-                    i.events.iter().any(|e| matches!(e, egui::Event::Copy))
-                });
+                let copy_event =
+                    ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy)));
                 if copy_event {
                     self.copy_selection(ui);
                 }
@@ -778,18 +786,16 @@ impl eframe::App for GlassApp {
         });
 
         // メインコンテンツ領域（タブ切り替え）
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            match self.active_tab {
-                ViewTab::Monitor => {
-                    if self.ui_state.show_search_bar {
-                        ui::search_bar::draw(ui, self);
-                        ui.separator();
-                    }
-                    ui::monitor_view::draw(ui, self);
+        egui::CentralPanel::default().show_inside(ui, |ui| match self.active_tab {
+            ViewTab::Monitor => {
+                if self.ui_state.show_search_bar {
+                    ui::search_bar::draw(ui, self);
+                    ui.separator();
                 }
-                ViewTab::Protocol => {
-                    ui::protocol_panel::draw(ui, self);
-                }
+                ui::monitor_view::draw(ui, self);
+            }
+            ViewTab::Protocol => {
+                ui::protocol_panel::draw(ui, self);
             }
         });
 

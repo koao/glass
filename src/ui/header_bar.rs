@@ -32,7 +32,10 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // 一時停止
         if ui
-            .add_enabled(is_running, egui::Button::new(format!("{} {}", regular::PAUSE, app.t.pause)))
+            .add_enabled(
+                is_running,
+                egui::Button::new(format!("{} {}", regular::PAUSE, app.t.pause)),
+            )
             .clicked()
         {
             app.pause();
@@ -40,7 +43,10 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         // 停止
         if ui
-            .add_enabled(!is_stopped, egui::Button::new(format!("{} {}", regular::STOP, app.t.stop)))
+            .add_enabled(
+                !is_stopped,
+                egui::Button::new(format!("{} {}", regular::STOP, app.t.stop)),
+            )
             .clicked()
         {
             app.stop();
@@ -62,7 +68,10 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         }
 
         // クリア（確認ダイアログ経由）— タブ/モード切替の右隣
-        if ui.button(format!("{} {}", regular::TRASH, app.t.clear)).clicked() {
+        if ui
+            .button(format!("{} {}", regular::TRASH, app.t.clear))
+            .clicked()
+        {
             app.show_clear_confirm();
         }
 
@@ -97,9 +106,10 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
             // 設定ウィンドウトグル（停止中のみ）
             if ui
-                .add_enabled(is_stopped, egui::Button::new(
-                    format!("{} {}", regular::GEAR_SIX, app.t.settings)
-                ))
+                .add_enabled(
+                    is_stopped,
+                    egui::Button::new(format!("{} {}", regular::GEAR_SIX, app.t.settings)),
+                )
                 .on_disabled_hover_text(app.t.settings_stopped_only)
                 .clicked()
             {
@@ -108,7 +118,11 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
             // 検索トグル（タブに応じてモニタ/プロトコル検索を切替）
             if ui
-                .button(format!("{} {}", regular::MAGNIFYING_GLASS, app.t.search_button))
+                .button(format!(
+                    "{} {}",
+                    regular::MAGNIFYING_GLASS,
+                    app.t.search_button
+                ))
                 .on_hover_text(app.t.search_shortcut)
                 .clicked()
             {

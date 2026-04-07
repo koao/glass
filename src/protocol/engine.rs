@@ -2,8 +2,8 @@ use std::fmt::Write;
 
 use regex::Regex;
 
-use crate::model::entry::DataEntry;
 use super::definition::{ParsedFrameRule, ProtocolFile};
+use crate::model::entry::DataEntry;
 
 /// バイトストリームから抽出されたフレーム
 #[derive(Clone, Debug)]
@@ -65,7 +65,9 @@ impl ProtocolEngine {
             }
         }
 
-        let frame_rules: Vec<ParsedFrameRule> = protocol.protocol.frame_rules
+        let frame_rules: Vec<ParsedFrameRule> = protocol
+            .protocol
+            .frame_rules
             .iter()
             .filter_map(|r| r.parse())
             .collect();
@@ -146,7 +148,11 @@ impl ProtocolState {
     /// ID から matches 内の現在インデックスを O(1) で解決
     pub fn position_by_id(&self, id: u64) -> Option<usize> {
         let pos = id.checked_sub(self.first_id)? as usize;
-        if pos < self.matches.len() { Some(pos) } else { None }
+        if pos < self.matches.len() {
+            Some(pos)
+        } else {
+            None
+        }
     }
 
     pub fn sync_entries(&mut self, entries: &[DataEntry], engine: &ProtocolEngine) {
@@ -218,14 +224,19 @@ impl ProtocolState {
                     self.frame_state = FrameState::FixedLength(remaining - 1);
                 }
             }
-            FrameState::WaitingEnd { end_byte, remaining } => {
+            FrameState::WaitingEnd {
+                end_byte,
+                remaining,
+            } => {
                 let end_byte = *end_byte;
                 let remaining = *remaining;
                 self.pending_bytes.push(b);
 
                 if b == end_byte {
-                    let end_extra = engine.find_rule(self.pending_bytes[0])
-                        .map(|r| r.end_extra).unwrap_or(0);
+                    let end_extra = engine
+                        .find_rule(self.pending_bytes[0])
+                        .map(|r| r.end_extra)
+                        .unwrap_or(0);
                     // max_length の残量で end_extra を切り詰める
                     let extra = end_extra.min(remaining.saturating_sub(1));
                     if extra > 0 {
@@ -306,7 +317,11 @@ impl ProtocolState {
         if self.matches.len() > MAX_MATCHES {
             let trim_count = (MAX_MATCHES as f64 * TRIM_RATIO) as usize;
             self.matches.drain(..trim_count);
-            self.first_id = self.matches.first().map(|m| m.id).unwrap_or(self.next_match_id);
+            self.first_id = self
+                .matches
+                .first()
+                .map(|m| m.id)
+                .unwrap_or(self.next_match_id);
         }
     }
 

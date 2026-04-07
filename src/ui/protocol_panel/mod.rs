@@ -68,7 +68,10 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     }
 
     let rows = build_row_entries(app);
-    let msg_count = rows.iter().filter(|r| matches!(r, RowEntry::Message(..))).count();
+    let msg_count = rows
+        .iter()
+        .filter(|r| matches!(r, RowEntry::Message(..)))
+        .count();
 
     draw_toolbar(ui, app, msg_count);
     ui.separator();
@@ -93,14 +96,22 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                 });
             } else {
                 let is_running = app.state == MonitorState::Running;
-                let scroll_to_row = app.protocol_search.take_scroll_target().and_then(|target_id| {
-                    let target_idx = app.protocol_state.position_by_id(target_id)?;
-                    rows.iter().position(|r| matches!(r, RowEntry::Message(idx, _) if *idx == target_idx))
-                });
+                let scroll_to_row =
+                    app.protocol_search
+                        .take_scroll_target()
+                        .and_then(|target_id| {
+                            let target_idx = app.protocol_state.position_by_id(target_id)?;
+                            rows.iter().position(
+                                |r| matches!(r, RowEntry::Message(idx, _) if *idx == target_idx),
+                            )
+                        });
                 if !is_running {
                     ScrollArea::vertical()
                         .auto_shrink([false, false])
-                        .scroll_source(egui::scroll_area::ScrollSource { drag: false, ..Default::default() })
+                        .scroll_source(egui::scroll_area::ScrollSource {
+                            drag: false,
+                            ..Default::default()
+                        })
                         .show(ui, |ui| {
                             draw_match_list(ui, app, &rows, false, scroll_to_row);
                         });
@@ -127,7 +138,9 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
             ui.colored_label(theme::TEXT_MUTED, "—");
         } else {
             let selected_idx = app.ui_state.selected_protocol_idx.unwrap_or(0);
-            let selected_title = app.protocol_files.get(selected_idx)
+            let selected_title = app
+                .protocol_files
+                .get(selected_idx)
                 .map(|(_, t)| t.as_str())
                 .unwrap_or("—");
 
@@ -140,10 +153,10 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
                 .selected_text(selected_title)
                 .show_ui(ui, |ui| {
                     for (i, title) in titles.iter().enumerate() {
-                        if ui.selectable_label(
-                            app.ui_state.selected_protocol_idx == Some(i),
-                            title,
-                        ).clicked() {
+                        if ui
+                            .selectable_label(app.ui_state.selected_protocol_idx == Some(i), title)
+                            .clicked()
+                        {
                             new_idx = Some(i);
                         }
                     }
@@ -155,7 +168,8 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
             }
         }
 
-        if ui.button(regular::ARROWS_CLOCKWISE)
+        if ui
+            .button(regular::ARROWS_CLOCKWISE)
             .on_hover_text(app.t.protocol_reload)
             .clicked()
         {
@@ -164,17 +178,27 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
 
         ui.separator();
 
-        if ui.button(format!("{} {}", regular::FUNNEL, app.t.protocol_filter))
+        if ui
+            .button(format!("{} {}", regular::FUNNEL, app.t.protocol_filter))
             .clicked()
         {
             app.ui_state.show_protocol_filter = !app.ui_state.show_protocol_filter;
         }
 
         let (mode_icon, mode_short, mode_tooltip) = match app.ui_state.protocol_view_mode {
-            ProtocolViewMode::List => (regular::REPEAT, app.t.protocol_mode_wrap_short, app.t.protocol_mode_wrap),
-            ProtocolViewMode::Wrap => (regular::LIST_BULLETS, app.t.protocol_mode_list_short, app.t.protocol_mode_list),
+            ProtocolViewMode::List => (
+                regular::REPEAT,
+                app.t.protocol_mode_wrap_short,
+                app.t.protocol_mode_wrap,
+            ),
+            ProtocolViewMode::Wrap => (
+                regular::LIST_BULLETS,
+                app.t.protocol_mode_list_short,
+                app.t.protocol_mode_list,
+            ),
         };
-        if ui.button(format!("{} {}", mode_icon, mode_short))
+        if ui
+            .button(format!("{} {}", mode_icon, mode_short))
             .on_hover_text(mode_tooltip)
             .clicked()
         {
@@ -191,7 +215,10 @@ fn draw_toolbar(ui: &mut Ui, app: &mut GlassApp, visible_msg_count: usize) {
                 if visible_msg_count == total {
                     ui.colored_label(theme::TEXT_MUTED, format!("{} messages", total));
                 } else {
-                    ui.colored_label(theme::TEXT_MUTED, format!("{}/{} messages", visible_msg_count, total));
+                    ui.colored_label(
+                        theme::TEXT_MUTED,
+                        format!("{}/{} messages", visible_msg_count, total),
+                    );
                 }
             }
         });
@@ -204,7 +231,11 @@ fn draw_filter_window(ui: &mut Ui, app: &mut GlassApp) {
         return;
     }
     let msg_info: Vec<(String, String)> = match &app.loaded_protocol {
-        Some(p) => p.messages.iter().map(|m| (m.id.clone(), m.title.clone())).collect(),
+        Some(p) => p
+            .messages
+            .iter()
+            .map(|m| (m.id.clone(), m.title.clone()))
+            .collect(),
         None => return,
     };
 
@@ -215,7 +246,10 @@ fn draw_filter_window(ui: &mut Ui, app: &mut GlassApp) {
         .resizable(true)
         .default_width(300.0)
         .show(ui.ctx(), |ui| {
-            ui.checkbox(&mut app.ui_state.protocol_show_idle, app.t.protocol_show_idle);
+            ui.checkbox(
+                &mut app.ui_state.protocol_show_idle,
+                app.t.protocol_show_idle,
+            );
             ui.separator();
 
             ui.horizontal(|ui| {
@@ -230,20 +264,18 @@ fn draw_filter_window(ui: &mut Ui, app: &mut GlassApp) {
             });
             ui.separator();
 
-            ScrollArea::vertical()
-                .max_height(400.0)
-                .show(ui, |ui| {
-                    for (id, title) in &msg_info {
-                        let mut visible = !app.ui_state.protocol_hidden_ids.contains(id);
-                        if ui.checkbox(&mut visible, title).changed() {
-                            if visible {
-                                app.ui_state.protocol_hidden_ids.remove(id);
-                            } else {
-                                app.ui_state.protocol_hidden_ids.insert(id.clone());
-                            }
+            ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                for (id, title) in &msg_info {
+                    let mut visible = !app.ui_state.protocol_hidden_ids.contains(id);
+                    if ui.checkbox(&mut visible, title).changed() {
+                        if visible {
+                            app.ui_state.protocol_hidden_ids.remove(id);
+                        } else {
+                            app.ui_state.protocol_hidden_ids.insert(id.clone());
                         }
                     }
-                });
+                }
+            });
         });
     app.ui_state.show_protocol_filter = open;
 }
@@ -260,8 +292,7 @@ fn draw_protocol_search_bar(ui: &mut Ui, app: &mut GlassApp) {
             ui.label(app.t.search_label);
 
             let response = ui.add(
-                egui::TextEdit::singleline(&mut app.protocol_search.query)
-                    .desired_width(200.0),
+                egui::TextEdit::singleline(&mut app.protocol_search.query).desired_width(200.0),
             );
             let enter_pressed =
                 response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -303,15 +334,23 @@ fn draw_protocol_search_bar(ui: &mut Ui, app: &mut GlassApp) {
             if app.protocol_search.has_searched {
                 let count = app.protocol_search.result_count();
                 if count > 0 {
-                    ui.label(format!("{}/{}", app.protocol_search.current_index() + 1, count));
+                    ui.label(format!(
+                        "{}/{}",
+                        app.protocol_search.current_index() + 1,
+                        count
+                    ));
                 } else {
                     ui.colored_label(theme::TEXT_MUTED, app.t.protocol_search_no_match);
                 }
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(format!("{} {}", regular::INFO, app.t.help)).clicked() {
-                    app.ui_state.show_protocol_search_help = !app.ui_state.show_protocol_search_help;
+                if ui
+                    .button(format!("{} {}", regular::INFO, app.t.help))
+                    .clicked()
+                {
+                    app.ui_state.show_protocol_search_help =
+                        !app.ui_state.show_protocol_search_help;
                 }
             });
         },
@@ -395,7 +434,11 @@ pub(super) fn build_row_entries(app: &GlassApp) -> Vec<RowEntry> {
 
     for (i, matched) in app.protocol_state.matches.iter().enumerate() {
         if let Some(def_idx) = matched.message_def_idx {
-            if app.ui_state.protocol_hidden_ids.contains(&proto.messages[def_idx].id) {
+            if app
+                .ui_state
+                .protocol_hidden_ids
+                .contains(&proto.messages[def_idx].id)
+            {
                 continue;
             }
         }
@@ -415,17 +458,22 @@ pub(super) fn draw_expanded_windows(ui: &mut Ui, app: &mut GlassApp) {
     let expanded: Vec<u64> = app.ui_state.protocol_expanded.iter().copied().collect();
     let mut to_close: Vec<u64> = Vec::new();
 
-    let titles: Vec<(u64, usize, String)> = expanded.iter().filter_map(|&id| {
-        let idx = app.protocol_state.position_by_id(id)?;
-        let matched = &app.protocol_state.matches[idx];
-        let title = match matched.message_def_idx {
-            Some(def_idx) => app.loaded_protocol.as_ref()
-                .map(|p| p.messages[def_idx].title.clone())
-                .unwrap_or_default(),
-            None => format!("{} #{}", app.t.protocol_unmatched, id),
-        };
-        Some((id, idx, title))
-    }).collect();
+    let titles: Vec<(u64, usize, String)> = expanded
+        .iter()
+        .filter_map(|&id| {
+            let idx = app.protocol_state.position_by_id(id)?;
+            let matched = &app.protocol_state.matches[idx];
+            let title = match matched.message_def_idx {
+                Some(def_idx) => app
+                    .loaded_protocol
+                    .as_ref()
+                    .map(|p| p.messages[def_idx].title.clone())
+                    .unwrap_or_default(),
+                None => format!("{} #{}", app.t.protocol_unmatched, id),
+            };
+            Some((id, idx, title))
+        })
+        .collect();
 
     for &id in &expanded {
         if !titles.iter().any(|(eid, _, _)| *eid == id) {
@@ -488,7 +536,8 @@ fn draw_expanded_detail(ui: &mut Ui, app: &GlassApp, match_idx: usize) {
                         let hex_val = extract_hex(&matched.frame.bytes, field.offset, field.size);
                         ui.monospace(&hex_val);
 
-                        let ascii_val = extract_ascii(&matched.frame.bytes, field.offset, field.size);
+                        let ascii_val =
+                            extract_ascii(&matched.frame.bytes, field.offset, field.size);
                         ui.monospace(&ascii_val);
 
                         let desc = field.description.as_deref().unwrap_or("");
@@ -555,7 +604,8 @@ fn load_selected_protocol(app: &mut GlassApp, idx: usize) {
             Ok(proto) => {
                 let engine = ProtocolEngine::new(&proto);
                 app.protocol_state.clear();
-                app.protocol_state.sync_entries(app.buffer.entries(), &engine);
+                app.protocol_state
+                    .sync_entries(app.buffer.entries(), &engine);
                 app.protocol_state.flush(&engine);
                 app.protocol_engine = Some(engine);
                 app.loaded_protocol = Some(proto);

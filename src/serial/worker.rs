@@ -17,8 +17,9 @@ pub fn spawn_receiver(
     #[cfg(target_os = "windows")]
     {
         // メインスレッドでポートを開いてエラーを呼び出し元に返す
-        let port_handle = win32_receiver::open_and_configure(config)
-            .map_err(|e| serialport::Error::new(serialport::ErrorKind::Io(e.kind()), e.to_string()))?;
+        let port_handle = win32_receiver::open_and_configure(config).map_err(|e| {
+            serialport::Error::new(serialport::ErrorKind::Io(e.kind()), e.to_string())
+        })?;
         let handle = std::thread::spawn(move || {
             if let Err(e) = win32_receiver::run_with_handle(
                 port_handle,

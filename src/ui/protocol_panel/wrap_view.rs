@@ -7,8 +7,8 @@ use crate::ui::selection;
 use crate::ui::theme;
 
 use super::{
-    compute_filter_hash, draw_expanded_windows, extract_ascii, handle_expand_toggle,
-    paint_idle_text, FONT, MONO_FONT, ROW_HEIGHT,
+    FONT, MONO_FONT, ROW_HEIGHT, compute_filter_hash, draw_expanded_windows, extract_ascii,
+    handle_expand_toggle, paint_idle_text,
 };
 
 /// IDLE上クリック時に同じ行の最寄りメッセージ ID を返す
@@ -33,10 +33,18 @@ fn is_idle_selected(app: &GlassApp, slots: &[WrapSlot], slot_index: usize) -> bo
         None => return false,
     };
     let prev = slots[..slot_index].iter().rev().find_map(|s| {
-        if let WrapSlotKind::Message { id, .. } = &s.kind { Some(*id) } else { None }
+        if let WrapSlotKind::Message { id, .. } = &s.kind {
+            Some(*id)
+        } else {
+            None
+        }
     });
     let next = slots[slot_index + 1..].iter().find_map(|s| {
-        if let WrapSlotKind::Message { id, .. } = &s.kind { Some(*id) } else { None }
+        if let WrapSlotKind::Message { id, .. } = &s.kind {
+            Some(*id)
+        } else {
+            None
+        }
     });
     match (prev, next) {
         (Some(p), Some(n)) => p >= sel_lo && p <= sel_hi && n >= sel_lo && n <= sel_hi,
@@ -103,16 +111,28 @@ fn measure_message_width(ui: &Ui, app: &GlassApp, match_idx: usize) -> f32 {
     match matched.message_def_idx {
         Some(def_idx) => {
             let msg_def = &proto.messages[def_idx];
-            w += painter.layout_no_wrap(msg_def.title.clone(), font.clone(), egui::Color32::WHITE).rect.width() + 8.0;
+            w += painter
+                .layout_no_wrap(msg_def.title.clone(), font.clone(), egui::Color32::WHITE)
+                .rect
+                .width()
+                + 8.0;
             for field in msg_def.fields.iter().filter(|f| f.inline) {
                 let ascii = extract_ascii(&matched.frame.bytes, field.offset, field.size);
                 let text = format!("{}:{}", field.name, ascii);
-                w += painter.layout_no_wrap(text, mono_font.clone(), egui::Color32::WHITE).rect.width() + 8.0;
+                w += painter
+                    .layout_no_wrap(text, mono_font.clone(), egui::Color32::WHITE)
+                    .rect
+                    .width()
+                    + 8.0;
             }
         }
         None => {
             let text = format!("{} {}", regular::QUESTION, app.t.protocol_unmatched);
-            w += painter.layout_no_wrap(text, font.clone(), egui::Color32::WHITE).rect.width() + 8.0;
+            w += painter
+                .layout_no_wrap(text, font.clone(), egui::Color32::WHITE)
+                .rect
+                .width()
+                + 8.0;
         }
     }
     w + 8.0
@@ -121,7 +141,11 @@ fn measure_message_width(ui: &Ui, app: &GlassApp, match_idx: usize) -> f32 {
 /// IDLE テキストの表示幅を計測
 fn measure_idle_width(painter: &egui::Painter, idle_ms: f64) -> f32 {
     let text = format!("IDLE {}ms", idle_ms as u64);
-    painter.layout_no_wrap(text, MONO_FONT(), egui::Color32::WHITE).rect.width() + 16.0
+    painter
+        .layout_no_wrap(text, MONO_FONT(), egui::Color32::WHITE)
+        .rect
+        .width()
+        + 16.0
 }
 
 /// インラインメッセージを描画（ピル背景付き）
@@ -155,7 +179,13 @@ fn paint_inline_message(
     } else {
         (1.0, theme::WRAP_PILL_BORDER)
     };
-    painter.rect(pill_rect, 4.0, theme::WRAP_PILL_BG, egui::Stroke::new(stroke_width, stroke_color), egui::StrokeKind::Inside);
+    painter.rect(
+        pill_rect,
+        4.0,
+        theme::WRAP_PILL_BG,
+        egui::Stroke::new(stroke_width, stroke_color),
+        egui::StrokeKind::Inside,
+    );
 
     let matched = &app.protocol_state.matches[match_idx];
     let font = FONT();
@@ -168,34 +198,56 @@ fn paint_inline_message(
             let title_color = msg_def.parsed_color.unwrap_or(egui::Color32::WHITE);
             let g = painter.layout_no_wrap(msg_def.title.clone(), font.clone(), title_color);
             let w = g.rect.width();
-            painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, title_color);
+            painter.galley(
+                egui::pos2(cur_x, center_y - g.rect.height() / 2.0),
+                g,
+                title_color,
+            );
             cur_x += w + 8.0;
             for field in msg_def.fields.iter().filter(|f| f.inline) {
                 let ascii = extract_ascii(&matched.frame.bytes, field.offset, field.size);
                 let text = format!("{}:{}", field.name, ascii);
                 let g = painter.layout_no_wrap(text, mono_font.clone(), theme::TEXT_MUTED);
                 let w = g.rect.width();
-                painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, theme::TEXT_MUTED);
+                painter.galley(
+                    egui::pos2(cur_x, center_y - g.rect.height() / 2.0),
+                    g,
+                    theme::TEXT_MUTED,
+                );
                 cur_x += w + 8.0;
             }
         }
         None => {
             let text = format!("{} {}", regular::QUESTION, app.t.protocol_unmatched);
             let g = painter.layout_no_wrap(text, font.clone(), theme::PROTOCOL_UNMATCHED);
-            painter.galley(egui::pos2(cur_x, center_y - g.rect.height() / 2.0), g, theme::PROTOCOL_UNMATCHED);
+            painter.galley(
+                egui::pos2(cur_x, center_y - g.rect.height() / 2.0),
+                g,
+                theme::PROTOCOL_UNMATCHED,
+            );
         }
     }
 }
 
 /// ラップ表示にスロットを追加（行送り・ラップアラウンド処理）
-fn wrap_push_slot(wrap: &mut WrapViewState, max_rows: usize, available_width: f32, kind: WrapSlotKind, width: f32) {
+fn wrap_push_slot(
+    wrap: &mut WrapViewState,
+    max_rows: usize,
+    available_width: f32,
+    kind: WrapSlotKind,
+    width: f32,
+) {
     if wrap.current_x + width > available_width && wrap.current_x > 0.0 {
         wrap.cursor = (wrap.cursor + 1) % max_rows;
         wrap.slots[wrap.cursor].clear();
         wrap.current_x = 0.0;
     }
 
-    let slot = WrapSlot { kind, x: wrap.current_x, width };
+    let slot = WrapSlot {
+        kind,
+        x: wrap.current_x,
+        width,
+    };
     if wrap.current_x == 0.0 && !wrap.slots[wrap.cursor].is_empty() {
         wrap.slots[wrap.cursor].clear();
     }
@@ -250,7 +302,11 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
     for i in start..total_matches {
         let matched = &app.protocol_state.matches[i];
         if let Some(def_idx) = matched.message_def_idx {
-            if app.ui_state.protocol_hidden_ids.contains(&proto.messages[def_idx].id) {
+            if app
+                .ui_state
+                .protocol_hidden_ids
+                .contains(&proto.messages[def_idx].id)
+            {
                 continue;
             }
         }
@@ -258,32 +314,49 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         if show_idle {
             if let Some(idle_ms) = matched.preceding_idle_ms {
                 let idle_width = measure_idle_width(ui.painter(), idle_ms);
-                wrap_push_slot(&mut app.ui_state.wrap, max_rows, available_width, WrapSlotKind::Idle(idle_ms), idle_width);
+                wrap_push_slot(
+                    &mut app.ui_state.wrap,
+                    max_rows,
+                    available_width,
+                    WrapSlotKind::Idle(idle_ms),
+                    idle_width,
+                );
             }
         }
 
         let msg_width = measure_message_width(ui, app, i);
         let mid = app.protocol_state.matches[i].id;
-        wrap_push_slot(&mut app.ui_state.wrap, max_rows, available_width, WrapSlotKind::Message { idx: i, id: mid }, msg_width);
+        wrap_push_slot(
+            &mut app.ui_state.wrap,
+            max_rows,
+            available_width,
+            WrapSlotKind::Message { idx: i, id: mid },
+            msg_width,
+        );
     }
     app.ui_state.wrap.rendered_count = total_matches;
 
     let is_paused = app.state == MonitorState::Paused;
     let total_height = max_rows as f32 * row_h;
-    let sense = if is_paused { Sense::click_and_drag() } else { Sense::hover() };
-    let (rect, area_resp) = ui.allocate_exact_size(
-        Vec2::new(available_width, total_height),
-        sense,
-    );
+    let sense = if is_paused {
+        Sense::click_and_drag()
+    } else {
+        Sense::hover()
+    };
+    let (rect, area_resp) = ui.allocate_exact_size(Vec2::new(available_width, total_height), sense);
 
     let mut toggle_id: Option<u64> = None;
 
     if is_paused {
         let slots_ref = &app.ui_state.wrap.slots;
         let hit_slot_match = |pos: egui::Pos2| -> Option<u64> {
-            if !rect.contains(pos) { return None; }
+            if !rect.contains(pos) {
+                return None;
+            }
             let row = ((pos.y - rect.min.y) / row_h).floor() as usize;
-            if row >= slots_ref.len() { return None; }
+            if row >= slots_ref.len() {
+                return None;
+            }
             let local_x = pos.x - rect.min.x;
             for slot in &slots_ref[row] {
                 if local_x >= slot.x && local_x <= slot.x + slot.width {
@@ -334,7 +407,9 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
             let seq_label = app.t.sequence_diagram;
             let (lo_id, hi_id) = app.ui_state.protocol_selection.range().unwrap();
             let lo = app.protocol_state.position_by_id(lo_id).unwrap_or(0);
-            let hi = app.protocol_state.position_by_id(hi_id)
+            let hi = app
+                .protocol_state
+                .position_by_id(hi_id)
                 .unwrap_or_else(|| app.protocol_state.matches.len().saturating_sub(1));
             let matches_ref = &app.protocol_state.matches;
             let proto_ref = app.loaded_protocol.as_ref();
@@ -352,7 +427,11 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
                             if let Some(proto) = proto_ref {
                                 if lo <= hi && !matches_ref.is_empty() {
                                     let indices: Vec<usize> = (lo..=hi).collect();
-                                    let text = selection::format_protocol_copy(matches_ref, proto, &indices);
+                                    let text = selection::format_protocol_copy(
+                                        matches_ref,
+                                        proto,
+                                        &indices,
+                                    );
                                     if !text.is_empty() {
                                         ui.ctx().copy_text(text);
                                     }
@@ -383,7 +462,11 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         if row == cursor_row {
             painter.rect_filled(row_rect, 0.0, theme::WRAP_CURSOR_LINE);
         } else {
-            let bg = if row % 2 == 0 { theme::PROTOCOL_ROW_EVEN } else { theme::PROTOCOL_ROW_ODD };
+            let bg = if row % 2 == 0 {
+                theme::PROTOCOL_ROW_EVEN
+            } else {
+                theme::PROTOCOL_ROW_ODD
+            };
             painter.rect_filled(row_rect, 0.0, bg);
         }
 
@@ -397,7 +480,10 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
             let caret_top = row_rect.min.y + 3.0;
             let caret_bottom = row_rect.max.y - 3.0;
             painter.line_segment(
-                [egui::pos2(caret_x, caret_top), egui::pos2(caret_x, caret_bottom)],
+                [
+                    egui::pos2(caret_x, caret_top),
+                    egui::pos2(caret_x, caret_bottom),
+                ],
                 egui::Stroke::new(2.0, theme::WRAP_CURSOR_CARET),
             );
         }
@@ -450,7 +536,10 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
 
     ScrollArea::vertical()
         .auto_shrink([false, false])
-        .scroll_source(egui::scroll_area::ScrollSource { drag: false, ..Default::default() })
+        .scroll_source(egui::scroll_area::ScrollSource {
+            drag: false,
+            ..Default::default()
+        })
         .show(ui, |ui| {
             let (rect, area_resp) = ui.allocate_exact_size(
                 Vec2::new(available_width, total_height),
@@ -458,9 +547,13 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
             );
 
             let hit_slot_match = |pos: egui::Pos2| -> Option<u64> {
-                if !rect.contains(pos) { return None; }
+                if !rect.contains(pos) {
+                    return None;
+                }
                 let row = ((pos.y - rect.min.y) / row_h).floor() as usize;
-                if row >= total_rows { return None; }
+                if row >= total_rows {
+                    return None;
+                }
                 let local_x = pos.x - rect.min.x;
                 for slot in &lines[row] {
                     if local_x >= slot.x && local_x <= slot.x + slot.width {
@@ -509,19 +602,27 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
             if app.ui_state.protocol_selection.range().is_some() {
                 let copy_label = app.t.copy;
                 let seq_label = app.t.sequence_diagram;
-                let has_seq = app.loaded_protocol.as_ref()
+                let has_seq = app
+                    .loaded_protocol
+                    .as_ref()
                     .map(|p| p.protocol.sequence.is_some())
                     .unwrap_or(false);
                 let copy_text = app.loaded_protocol.as_ref().map(|proto| {
                     let (lo_id, hi_id) = app.ui_state.protocol_selection.range().unwrap();
                     let lo = app.protocol_state.position_by_id(lo_id).unwrap_or(0);
-                    let hi = app.protocol_state.position_by_id(hi_id)
+                    let hi = app
+                        .protocol_state
+                        .position_by_id(hi_id)
                         .unwrap_or_else(|| app.protocol_state.matches.len().saturating_sub(1));
                     if lo > hi || app.protocol_state.matches.is_empty() {
                         String::new()
                     } else {
                         let indices: Vec<usize> = (lo..=hi).collect();
-                        selection::format_protocol_copy(&app.protocol_state.matches, proto, &indices)
+                        selection::format_protocol_copy(
+                            &app.protocol_state.matches,
+                            proto,
+                            &indices,
+                        )
                     }
                 });
                 area_resp.context_menu(|ui| {
@@ -561,7 +662,11 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                     egui::pos2(rect.min.x, y_top),
                     Vec2::new(available_width, row_h),
                 );
-                let bg = if row % 2 == 0 { theme::PROTOCOL_ROW_EVEN } else { theme::PROTOCOL_ROW_ODD };
+                let bg = if row % 2 == 0 {
+                    theme::PROTOCOL_ROW_EVEN
+                } else {
+                    theme::PROTOCOL_ROW_ODD
+                };
                 painter.rect_filled(row_rect, 0.0, bg);
 
                 if scroll_to_row == Some(row) {
@@ -593,7 +698,11 @@ fn build_stopped_layout(ui: &Ui, app: &mut GlassApp, available_width: f32) {
     for i in 0..total_matches {
         let matched = &app.protocol_state.matches[i];
         if let Some(def_idx) = matched.message_def_idx {
-            if app.ui_state.protocol_hidden_ids.contains(&proto.messages[def_idx].id) {
+            if app
+                .ui_state
+                .protocol_hidden_ids
+                .contains(&proto.messages[def_idx].id)
+            {
                 continue;
             }
         }
@@ -605,7 +714,11 @@ fn build_stopped_layout(ui: &Ui, app: &mut GlassApp, available_width: f32) {
                     lines.push(std::mem::take(&mut current_line));
                     current_x = 0.0;
                 }
-                current_line.push(WrapSlot { kind: WrapSlotKind::Idle(idle_ms), x: current_x, width: idle_width });
+                current_line.push(WrapSlot {
+                    kind: WrapSlotKind::Idle(idle_ms),
+                    x: current_x,
+                    width: idle_width,
+                });
                 current_x += idle_width;
             }
         }
@@ -616,7 +729,11 @@ fn build_stopped_layout(ui: &Ui, app: &mut GlassApp, available_width: f32) {
             current_x = 0.0;
         }
         let mid = app.protocol_state.matches[i].id;
-        current_line.push(WrapSlot { kind: WrapSlotKind::Message { idx: i, id: mid }, x: current_x, width: msg_width });
+        current_line.push(WrapSlot {
+            kind: WrapSlotKind::Message { idx: i, id: mid },
+            x: current_x,
+            width: msg_width,
+        });
         current_x += msg_width;
     }
     if !current_line.is_empty() {

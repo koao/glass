@@ -14,65 +14,72 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         Vec2::new(ui.available_width(), row_height),
         egui::Layout::left_to_right(egui::Align::Center),
         |ui| {
-        ui.label(app.t.search_label);
+            ui.label(app.t.search_label);
 
-        let response = ui.add(
-            egui::TextEdit::singleline(&mut app.search.query)
-                .desired_width(200.0)
-                .hint_text(app.t.search_hint),
-        );
-        let enter_pressed =
-            response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut app.search.query)
+                    .desired_width(200.0)
+                    .hint_text(app.t.search_hint),
+            );
+            let enter_pressed =
+                response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
-        let search_clicked = ui.button(app.t.search_button).clicked() || enter_pressed;
+            let search_clicked = ui.button(app.t.search_button).clicked() || enter_pressed;
 
-        // クリアボタン（検索実行済みの場合に有効）
-        if ui
-            .add_enabled(app.search.has_searched, egui::Button::new(format!("{} {}", regular::ERASER, app.t.search_clear)))
-            .clicked()
-        {
-            app.search.reset();
-        }
-
-        // 受信中は移動ボタン無効
-        let is_stopped = app.state == MonitorState::Stopped;
-        let has_results = app.search.result_count() > 0;
-        let can_navigate = has_results && is_stopped;
-        let prev_clicked = ui
-            .add_enabled(can_navigate, egui::Button::new(regular::CARET_LEFT))
-            .clicked();
-        let next_clicked = ui
-            .add_enabled(can_navigate, egui::Button::new(regular::CARET_RIGHT))
-            .clicked();
-
-        // バッファのクローンは操作があった場合のみ1回
-        if search_clicked || prev_clicked || next_clicked {
-            let entries = app.buffer.entries().to_vec();
-            if search_clicked {
-                app.search.search(&entries);
-            } else if prev_clicked {
-                app.search.prev(&entries);
-            } else {
-                app.search.next(&entries);
+            // クリアボタン（検索実行済みの場合に有効）
+            if ui
+                .add_enabled(
+                    app.search.has_searched,
+                    egui::Button::new(format!("{} {}", regular::ERASER, app.t.search_clear)),
+                )
+                .clicked()
+            {
+                app.search.reset();
             }
-        }
 
-        if app.search.has_searched {
-            let count = app.search.result_count();
-            if count > 0 {
-                ui.label(format!("{}/{}", app.search.current_index() + 1, count));
-            } else {
-                ui.colored_label(theme::TEXT_MUTED, app.t.no_match);
-            }
-        }
+            // 受信中は移動ボタン無効
+            let is_stopped = app.state == MonitorState::Stopped;
+            let has_results = app.search.result_count() > 0;
+            let can_navigate = has_results && is_stopped;
+            let prev_clicked = ui
+                .add_enabled(can_navigate, egui::Button::new(regular::CARET_LEFT))
+                .clicked();
+            let next_clicked = ui
+                .add_enabled(can_navigate, egui::Button::new(regular::CARET_RIGHT))
+                .clicked();
 
-        // 右寄せ: ヘルプボタン
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button(format!("{} {}", regular::INFO, app.t.help)).clicked() {
-                app.ui_state.show_search_help = !app.ui_state.show_search_help;
+            // バッファのクローンは操作があった場合のみ1回
+            if search_clicked || prev_clicked || next_clicked {
+                let entries = app.buffer.entries().to_vec();
+                if search_clicked {
+                    app.search.search(&entries);
+                } else if prev_clicked {
+                    app.search.prev(&entries);
+                } else {
+                    app.search.next(&entries);
+                }
             }
-        });
-    });
+
+            if app.search.has_searched {
+                let count = app.search.result_count();
+                if count > 0 {
+                    ui.label(format!("{}/{}", app.search.current_index() + 1, count));
+                } else {
+                    ui.colored_label(theme::TEXT_MUTED, app.t.no_match);
+                }
+            }
+
+            // 右寄せ: ヘルプボタン
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .button(format!("{} {}", regular::INFO, app.t.help))
+                    .clicked()
+                {
+                    app.ui_state.show_search_help = !app.ui_state.show_search_help;
+                }
+            });
+        },
+    );
 }
 
 /// 検索ヘルプウィンドウ描画

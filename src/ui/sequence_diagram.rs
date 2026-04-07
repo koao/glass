@@ -68,7 +68,12 @@ fn eval_expr(expr: &str, bytes: &[u8], fields: &[FieldDef]) -> Option<String> {
                     if value == "—" {
                         return None;
                     }
-                    result = format!("{}{}{}", &result[..start], value, &result[start + end + 1..]);
+                    result = format!(
+                        "{}{}{}",
+                        &result[..start],
+                        value,
+                        &result[start + end + 1..]
+                    );
                 } else {
                     return None;
                 }
@@ -113,8 +118,7 @@ fn resolve_endpoints(
 // ===== Mermaid構文生成 =====
 
 fn escape_mermaid(s: &str) -> String {
-    s.replace('#', "#35;")
-        .replace(';', "#59;")
+    s.replace('#', "#35;").replace(';', "#59;")
 }
 
 fn build_label(matched: &MatchedMessage, msg_def: Option<&MessageDef>) -> String {
@@ -179,13 +183,20 @@ fn build_mermaid(
         };
 
         if is_broadcast {
-            let bc_src = source.clone().or_else(|| last_dest.clone()).unwrap_or_else(|| "?".to_string());
+            let bc_src = source
+                .clone()
+                .or_else(|| last_dest.clone())
+                .unwrap_or_else(|| "?".to_string());
             if bc_src != "?" {
                 add_participant(&bc_src);
             }
             arrows.push(Arrow {
-                src: bc_src.clone(), dest: String::new(), label,
-                is_response: false, idle_ms, is_broadcast: true,
+                src: bc_src.clone(),
+                dest: String::new(),
+                label,
+                is_response: false,
+                idle_ms,
+                is_broadcast: true,
             });
             last_src = Some(bc_src);
         } else {
@@ -194,8 +205,12 @@ fn build_mermaid(
                     add_participant(s);
                     add_participant(d);
                     arrows.push(Arrow {
-                        src: s.clone(), dest: d.clone(), label,
-                        is_response: false, idle_ms, is_broadcast: false,
+                        src: s.clone(),
+                        dest: d.clone(),
+                        label,
+                        is_response: false,
+                        idle_ms,
+                        is_broadcast: false,
                     });
                     last_src = Some(s.clone());
                     last_dest = Some(d.clone());
@@ -203,10 +218,16 @@ fn build_mermaid(
                 (Some(s), None) => {
                     add_participant(s);
                     let response_dest = last_src.clone().unwrap_or_else(|| "?".to_string());
-                    if response_dest != "?" { add_participant(&response_dest); }
+                    if response_dest != "?" {
+                        add_participant(&response_dest);
+                    }
                     arrows.push(Arrow {
-                        src: s.clone(), dest: response_dest.clone(), label,
-                        is_response: true, idle_ms, is_broadcast: false,
+                        src: s.clone(),
+                        dest: response_dest.clone(),
+                        label,
+                        is_response: true,
+                        idle_ms,
+                        is_broadcast: false,
                     });
                     last_src = Some(s.clone());
                     last_dest = Some(response_dest);
@@ -214,10 +235,16 @@ fn build_mermaid(
                 (None, Some(d)) => {
                     add_participant(d);
                     let inferred_src = last_dest.clone().unwrap_or_else(|| "?".to_string());
-                    if inferred_src != "?" { add_participant(&inferred_src); }
+                    if inferred_src != "?" {
+                        add_participant(&inferred_src);
+                    }
                     arrows.push(Arrow {
-                        src: inferred_src.clone(), dest: d.clone(), label,
-                        is_response: false, idle_ms, is_broadcast: false,
+                        src: inferred_src.clone(),
+                        dest: d.clone(),
+                        label,
+                        is_response: false,
+                        idle_ms,
+                        is_broadcast: false,
                     });
                     last_src = Some(inferred_src);
                     last_dest = Some(d.clone());
@@ -225,11 +252,19 @@ fn build_mermaid(
                 (None, None) => {
                     let resp_src = last_dest.clone().unwrap_or_else(|| "?".to_string());
                     let resp_dest = last_src.clone().unwrap_or_else(|| "?".to_string());
-                    if resp_src != "?" { add_participant(&resp_src); }
-                    if resp_dest != "?" { add_participant(&resp_dest); }
+                    if resp_src != "?" {
+                        add_participant(&resp_src);
+                    }
+                    if resp_dest != "?" {
+                        add_participant(&resp_dest);
+                    }
                     arrows.push(Arrow {
-                        src: resp_src.clone(), dest: resp_dest.clone(), label,
-                        is_response: true, idle_ms, is_broadcast: false,
+                        src: resp_src.clone(),
+                        dest: resp_dest.clone(),
+                        label,
+                        is_response: true,
+                        idle_ms,
+                        is_broadcast: false,
                     });
                     last_src = Some(resp_src);
                     last_dest = Some(resp_dest);
@@ -249,18 +284,30 @@ fn build_mermaid(
     for arrow in &arrows {
         if let Some(ms) = arrow.idle_ms {
             if !first_p.is_empty() && !last_p.is_empty() {
-                lines.push(format!("    Note over {},{}: IDLE {}ms", first_p, last_p, ms as u64));
+                lines.push(format!(
+                    "    Note over {},{}: IDLE {}ms",
+                    first_p, last_p, ms as u64
+                ));
             }
         }
 
         if arrow.is_broadcast {
             if !first_p.is_empty() && !last_p.is_empty() {
-                lines.push(format!("    Note over {},{}: [Broadcast] {}", first_p, last_p, arrow.label));
+                lines.push(format!(
+                    "    Note over {},{}: [Broadcast] {}",
+                    first_p, last_p, arrow.label
+                ));
             }
         } else if arrow.is_response {
-            lines.push(format!("    {}-->>{}:  {}", arrow.src, arrow.dest, arrow.label));
+            lines.push(format!(
+                "    {}-->>{}:  {}",
+                arrow.src, arrow.dest, arrow.label
+            ));
         } else {
-            lines.push(format!("    {}->>{}:  {}", arrow.src, arrow.dest, arrow.label));
+            lines.push(format!(
+                "    {}->>{}:  {}",
+                arrow.src, arrow.dest, arrow.label
+            ));
         }
     }
 
@@ -307,17 +354,19 @@ fn render_svg(mermaid_text: &str) -> Result<String, String> {
 /// キャッシュ済みフォントDB（UIと同じ日本語フォントのみロード）
 fn cached_fontdb() -> Arc<resvg::usvg::fontdb::Database> {
     static FONTDB: OnceLock<Arc<resvg::usvg::fontdb::Database>> = OnceLock::new();
-    FONTDB.get_or_init(|| {
-        let mut db = resvg::usvg::fontdb::Database::new();
-        if let Some((path, _)) = japanese_font::chosen_font() {
-            let _ = db.load_font_file(path);
-        }
-        // フォールバック: 日本語フォントが見つからない場合はシステムフォント
-        if db.is_empty() {
-            db.load_system_fonts();
-        }
-        Arc::new(db)
-    }).clone()
+    FONTDB
+        .get_or_init(|| {
+            let mut db = resvg::usvg::fontdb::Database::new();
+            if let Some((path, _)) = japanese_font::chosen_font() {
+                let _ = db.load_font_file(path);
+            }
+            // フォールバック: 日本語フォントが見つからない場合はシステムフォント
+            if db.is_empty() {
+                db.load_system_fonts();
+            }
+            Arc::new(db)
+        })
+        .clone()
 }
 
 fn rasterize_svg(svg_data: &str) -> Result<ColorImage, String> {
@@ -331,11 +380,20 @@ fn rasterize_svg(svg_data: &str) -> Result<ColorImage, String> {
     if w == 0 || h == 0 {
         return Err("SVG size is zero".to_string());
     }
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)
-        .ok_or_else(|| "Failed to create pixmap".to_string())?;
+    let mut pixmap =
+        resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| "Failed to create pixmap".to_string())?;
     let bg = theme::GRID_BG;
-    pixmap.fill(resvg::tiny_skia::Color::from_rgba8(bg.r(), bg.g(), bg.b(), 0xFF));
-    resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
+    pixmap.fill(resvg::tiny_skia::Color::from_rgba8(
+        bg.r(),
+        bg.g(),
+        bg.b(),
+        0xFF,
+    ));
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::default(),
+        &mut pixmap.as_mut(),
+    );
     let pixels: Vec<egui::Color32> = pixmap
         .pixels()
         .iter()
@@ -369,7 +427,8 @@ fn save_png(rgba: &[u8], size: [u32; 2]) -> Result<(), String> {
     if let Some(path) = path {
         let img = image::RgbaImage::from_raw(size[0], size[1], rgba.to_vec())
             .ok_or_else(|| "Failed to create image".to_string())?;
-        img.save(&path).map_err(|e| format!("PNG save error: {}", e))?;
+        img.save(&path)
+            .map_err(|e| format!("PNG save error: {}", e))?;
     }
     Ok(())
 }
@@ -392,12 +451,16 @@ fn start_generate(
     let adjusted_range = (0, matches_clone.len().saturating_sub(1));
 
     std::thread::spawn(move || {
-        let mermaid_text = build_mermaid(&matches_clone, &proto_clone, &seq_config_clone, adjusted_range);
-        let result = render_svg(&mermaid_text)
-            .and_then(|svg| {
-                let image = rasterize_svg(&svg)?;
-                Ok(GenerateResult { svg, image })
-            });
+        let mermaid_text = build_mermaid(
+            &matches_clone,
+            &proto_clone,
+            &seq_config_clone,
+            adjusted_range,
+        );
+        let result = render_svg(&mermaid_text).and_then(|svg| {
+            let image = rasterize_svg(&svg)?;
+            Ok(GenerateResult { svg, image })
+        });
         let _ = tx.send(result);
     });
 
@@ -414,12 +477,18 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
         let proto = app.loaded_protocol.as_ref();
         let seq_config = proto.and_then(|p| p.protocol.sequence.as_ref());
         // 選択 ID 範囲 → 現在のインデックス範囲に解決
-        let range = app.ui_state.protocol_selection.range().and_then(|(lo_id, hi_id)| {
-            let lo = app.protocol_state.position_by_id(lo_id)?;
-            let hi = app.protocol_state.position_by_id(hi_id)
-                .unwrap_or_else(|| app.protocol_state.matches.len().saturating_sub(1));
-            if lo > hi { None } else { Some((lo, hi)) }
-        });
+        let range = app
+            .ui_state
+            .protocol_selection
+            .range()
+            .and_then(|(lo_id, hi_id)| {
+                let lo = app.protocol_state.position_by_id(lo_id)?;
+                let hi = app
+                    .protocol_state
+                    .position_by_id(hi_id)
+                    .unwrap_or_else(|| app.protocol_state.matches.len().saturating_sub(1));
+                if lo > hi { None } else { Some((lo, hi)) }
+            });
 
         if let (Some(proto), Some(seq_config), Some(range)) = (proto, seq_config, range) {
             let rx = start_generate(&app.protocol_state.matches, proto, seq_config, range);
@@ -441,13 +510,14 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
                     // PNG保存用にRGBAデータを保持
                     let [w, h] = result.image.size;
                     app.ui_state.sequence_diagram.png_size = [w as u32, h as u32];
-                    app.ui_state.sequence_diagram.png_rgba = result.image.pixels
-                        .iter().flat_map(|c| c.to_array()).collect();
-                    let texture = ctx.load_texture(
-                        "sequence_diagram",
-                        result.image,
-                        TextureOptions::LINEAR,
-                    );
+                    app.ui_state.sequence_diagram.png_rgba = result
+                        .image
+                        .pixels
+                        .iter()
+                        .flat_map(|c| c.to_array())
+                        .collect();
+                    let texture =
+                        ctx.load_texture("sequence_diagram", result.image, TextureOptions::LINEAR);
                     app.ui_state.sequence_diagram.texture = Some(texture);
                     app.ui_state.sequence_diagram.svg = result.svg;
                     true
@@ -504,12 +574,18 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
                     });
                 } else {
                     ui.horizontal(|ui| {
-                        if ui.button(format!("{}  {}", regular::FLOPPY_DISK, app.t.save_svg)).clicked() {
+                        if ui
+                            .button(format!("{}  {}", regular::FLOPPY_DISK, app.t.save_svg))
+                            .clicked()
+                        {
                             if let Err(e) = save_svg(&app.ui_state.sequence_diagram.svg) {
                                 app.show_error(&e);
                             }
                         }
-                        if ui.button(format!("{}  {}", regular::IMAGE, app.t.save_png)).clicked() {
+                        if ui
+                            .button(format!("{}  {}", regular::IMAGE, app.t.save_png))
+                            .clicked()
+                        {
                             if let Err(e) = save_png(
                                 &app.ui_state.sequence_diagram.png_rgba,
                                 app.ui_state.sequence_diagram.png_size,

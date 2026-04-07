@@ -1,5 +1,8 @@
-use egui::{Align2, Color32, FontId, PointerButton, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2};
 use egui::epaint::TextShape;
+use egui::{
+    Align2, Color32, FontId, PointerButton, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui,
+    Vec2,
+};
 
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
@@ -15,11 +18,9 @@ const ROTATED_FONT_SIZE: f32 = 11.0;
 
 // === 制御コード略称 ===
 const CONTROL_CODES: [&str; 33] = [
-    "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
-    "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI",
-    "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
-    "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US",
-    "SP",  // 0x20 スペース
+    "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF", "CR",
+    "SO", "SI", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM", "SUB", "ESC",
+    "FS", "GS", "RS", "US", "SP", // 0x20 スペース
 ];
 
 /// セル寸法を計算
@@ -104,7 +105,14 @@ fn search_highlight_bg(search: &SearchState, entry_idx: usize, time: f64) -> Opt
 }
 
 /// マウス位置からセルインデックスを取得
-fn hit_test_cell(pos: Pos2, rect: Rect, cols: usize, cell_w: f32, cell_h: f32, max_idx: usize) -> Option<usize> {
+fn hit_test_cell(
+    pos: Pos2,
+    rect: Rect,
+    cols: usize,
+    cell_w: f32,
+    cell_h: f32,
+    max_idx: usize,
+) -> Option<usize> {
     if !rect.contains(pos) {
         return None;
     }
@@ -173,7 +181,6 @@ fn handle_selection_input(
             }
         }
     }
-
 }
 
 /// コンテキストメニュー（右クリック）の描画 — 選択範囲がある場合のみ表示
@@ -214,7 +221,8 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
     // 検索ハイライトがある場合は再描画（点滅アニメーション用、30fps制限）
     if app.search.has_highlights() {
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(33));
     }
 
     match app.state {
@@ -259,7 +267,14 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
         let bl = buf_len;
         let tc = total_cells;
         handle_selection_input(
-            ui, &response, app, rect, cols, cell_w, cell_h, total_cells,
+            ui,
+            &response,
+            app,
+            rect,
+            cols,
+            cell_w,
+            cell_h,
+            total_cells,
             |cell_idx| map_cell_to_entry(cell_idx, bl, tc),
         );
         draw_context_menu(&response, ui, app);
@@ -309,7 +324,12 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
     if buf_len > 0 || app.last_byte_time.is_some() {
         let cr = cell_rect(rect, cursor_pos, cols, cell_w, cell_h);
         painter.rect_filled(cr, 0.0, theme::CURSOR_FILL);
-        painter.rect_stroke(cr, 0.0, Stroke::new(2.0, theme::CURSOR_STROKE), StrokeKind::Inside);
+        painter.rect_stroke(
+            cr,
+            0.0,
+            Stroke::new(2.0, theme::CURSOR_STROKE),
+            StrokeKind::Inside,
+        );
     }
 }
 
@@ -317,17 +337,17 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
 fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, cols: usize) {
     let total_cells = app.display_buffer.len();
     if total_cells == 0 {
-        ui.colored_label(
-            theme::TEXT_MUTED,
-            app.t.no_data,
-        );
+        ui.colored_label(theme::TEXT_MUTED, app.t.no_data);
         return;
     }
     let total_rows = (total_cells + cols - 1) / cols;
 
     // スクロール先セルインデックスを計算
     let scroll_to_cell: Option<usize> = app.search.take_scroll_target().and_then(|entry_idx| {
-        app.display_buffer.entry_indices().iter().position(|&ei| ei == entry_idx)
+        app.display_buffer
+            .entry_indices()
+            .iter()
+            .position(|&ei| ei == entry_idx)
     });
 
     ScrollArea::vertical()
@@ -342,8 +362,21 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
 
             // 選択処理
             handle_selection_input(
-                ui, &response, app, rect, cols, cell_w, cell_h, total_cells,
-                |cell_idx| if cell_idx < total_cells { Some(cell_idx) } else { None },
+                ui,
+                &response,
+                app,
+                rect,
+                cols,
+                cell_w,
+                cell_h,
+                total_cells,
+                |cell_idx| {
+                    if cell_idx < total_cells {
+                        Some(cell_idx)
+                    } else {
+                        None
+                    }
+                },
             );
             draw_context_menu(&response, ui, app);
 
@@ -381,7 +414,13 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
 }
 
 /// セルを1つ描画
-fn draw_cell(painter: &egui::Painter, rect: Rect, cell: &DisplayCell, mode: &DisplayMode, colors: &MonitorColors) {
+fn draw_cell(
+    painter: &egui::Painter,
+    rect: Rect,
+    cell: &DisplayCell,
+    mode: &DisplayMode,
+    colors: &MonitorColors,
+) {
     match cell {
         DisplayCell::Data(byte) => {
             draw_data_byte(painter, rect, *byte, mode, colors);
@@ -411,12 +450,24 @@ fn hex_label(byte: u8) -> String {
 }
 
 /// データバイトを描画
-fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayMode, colors: &MonitorColors) {
+fn draw_data_byte(
+    painter: &egui::Painter,
+    rect: Rect,
+    byte: u8,
+    mode: &DisplayMode,
+    colors: &MonitorColors,
+) {
     let rotated_font = FontId::monospace(ROTATED_FONT_SIZE);
 
     match mode {
         DisplayMode::Hex => {
-            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, colors.high_byte_color32());
+            draw_rotated(
+                painter,
+                rect,
+                &hex_label(byte),
+                &rotated_font,
+                colors.high_byte_color32(),
+            );
         }
         DisplayMode::Ascii => {
             if byte >= 0x21 && byte <= 0x7E {
@@ -432,9 +483,21 @@ fn draw_data_byte(painter: &egui::Painter, rect: Rect, byte: u8, mode: &DisplayM
                 let name = CONTROL_CODES[byte as usize];
                 draw_rotated(painter, rect, name, &rotated_font, colors.control_color32());
             } else if byte == 0x7F {
-                draw_rotated(painter, rect, "DEL", &rotated_font, colors.control_color32());
+                draw_rotated(
+                    painter,
+                    rect,
+                    "DEL",
+                    &rotated_font,
+                    colors.control_color32(),
+                );
             } else {
-                draw_rotated(painter, rect, &hex_label(byte), &rotated_font, colors.high_byte_color32());
+                draw_rotated(
+                    painter,
+                    rect,
+                    &hex_label(byte),
+                    &rotated_font,
+                    colors.high_byte_color32(),
+                );
             }
         }
     }
@@ -448,10 +511,7 @@ fn draw_rotated(painter: &egui::Painter, rect: Rect, text: &str, font_id: &FontI
     let h = galley.rect.height();
 
     // 90°CCW回転後の中心をセル中央に合わせる
-    let pos = Pos2::new(
-        rect.center().x - h / 2.0,
-        rect.center().y + w / 2.0,
-    );
+    let pos = Pos2::new(rect.center().x - h / 2.0, rect.center().y + w / 2.0);
 
     let mut text_shape = TextShape::new(pos, galley, color);
     text_shape.angle = -std::f32::consts::FRAC_PI_2;

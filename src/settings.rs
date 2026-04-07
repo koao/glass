@@ -43,10 +43,18 @@ impl MonitorColors {
         Color32::from_rgb(self.data_color[0], self.data_color[1], self.data_color[2])
     }
     pub fn control_color32(&self) -> Color32 {
-        Color32::from_rgb(self.control_color[0], self.control_color[1], self.control_color[2])
+        Color32::from_rgb(
+            self.control_color[0],
+            self.control_color[1],
+            self.control_color[2],
+        )
     }
     pub fn high_byte_color32(&self) -> Color32 {
-        Color32::from_rgb(self.high_byte_color[0], self.high_byte_color[1], self.high_byte_color[2])
+        Color32::from_rgb(
+            self.high_byte_color[0],
+            self.high_byte_color[1],
+            self.high_byte_color[2],
+        )
     }
     pub fn idle_text_color32(&self) -> Color32 {
         Color32::from_rgb(self.idle_text[0], self.idle_text[1], self.idle_text[2])
