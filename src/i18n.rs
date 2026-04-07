@@ -140,6 +140,12 @@ pub struct Texts {
     pub copy_binary: &'static str,
     pub copy: &'static str,
 
+    // -- シーケンス図 --
+    pub sequence_diagram: &'static str,
+    pub sequence_generating: &'static str,
+    pub save_svg: &'static str,
+    pub save_png: &'static str,
+
     // -- app エラー --
     pub err_no_port: &'static str,
     pub err_port_open: &'static str,
@@ -256,6 +262,12 @@ const JA: Texts = Texts {
     copy_binary: "コピー（バイナリ）",
     copy: "コピー",
 
+    // シーケンス図
+    sequence_diagram: "シーケンス図",
+    sequence_generating: "シーケンス図を生成中...",
+    save_svg: "SVG保存",
+    save_png: "PNG保存",
+
     // app エラー
     err_no_port: "COMポートを選択してください",
     err_port_open: "ポートオープン失敗",
@@ -371,6 +383,12 @@ const EN: Texts = Texts {
     copy_hex: "Copy (HEX: $05$4F$4B)",
     copy_binary: "Copy (Binary)",
     copy: "Copy",
+
+    // シーケンス図
+    sequence_diagram: "Sequence Diagram",
+    sequence_generating: "Generating sequence diagram...",
+    save_svg: "Save SVG",
+    save_png: "Save PNG",
 
     // app エラー
     err_no_port: "Please select a COM port",

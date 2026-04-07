@@ -9,3 +9,4 @@ pub mod search;
 pub mod protocol_search;
 pub mod dialog;
 pub mod selection;
+pub mod sequence_diagram;

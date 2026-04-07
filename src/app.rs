@@ -202,6 +202,8 @@ pub struct UiState {
     pub monitor_selection: Selection,
     /// プロトコルパネルの選択状態
     pub protocol_selection: Selection,
+    /// シーケンス図の状態
+    pub sequence_diagram: ui::sequence_diagram::SequenceDiagramState,
 }
 
 /// アプリケーション本体
@@ -336,6 +338,7 @@ impl GlassApp {
                 dialog: None,
                 monitor_selection: Selection::new(),
                 protocol_selection: Selection::new(),
+                sequence_diagram: ui::sequence_diagram::SequenceDiagramState::new(),
             },
             lang,
             t: lang.texts(),
@@ -792,6 +795,7 @@ impl eframe::App for GlassApp {
         // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
         ui::search_bar::draw_help(ui, self);
+        ui::sequence_diagram::draw(ui.ctx(), self);
         ui::dialog::draw(ui.ctx(), self);
 
         // スクリーンショット要求の送信

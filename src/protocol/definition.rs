@@ -10,6 +10,20 @@ pub struct ProtocolFile {
     pub messages: Vec<MessageDef>,
 }
 
+/// シーケンス図設定
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct SequenceConfig {
+    /// デフォルトの送信元式（省略可）
+    #[serde(default)]
+    pub source: Option<String>,
+    /// デフォルトの宛先式（省略可）
+    #[serde(default)]
+    pub destination: Option<String>,
+    /// ブロードキャスト値（この値が宛先の場合、全参加者への送信）
+    #[serde(default)]
+    pub broadcast: Option<String>,
+}
+
 /// プロトコルメタデータ
 #[derive(Clone, Debug, Deserialize)]
 pub struct ProtocolMeta {
@@ -20,6 +34,9 @@ pub struct ProtocolMeta {
     /// フレーム取得ルール（先頭バイトに基づく取得方法の定義）
     #[serde(default)]
     pub frame_rules: Vec<FrameRule>,
+    /// シーケンス図設定（省略可）
+    #[serde(default)]
+    pub sequence: Option<SequenceConfig>,
 }
 
 fn default_frame_idle_threshold() -> f64 {
@@ -91,6 +108,12 @@ pub struct MessageDef {
     /// パース済みタイトル色（ロード時に計算）
     #[serde(skip)]
     pub parsed_color: Option<egui::Color32>,
+    /// シーケンス図の送信元式（グローバルデフォルトをオーバーライド）
+    #[serde(default)]
+    pub sequence_source: Option<String>,
+    /// シーケンス図の宛先式（グローバルデフォルトをオーバーライド）
+    #[serde(default)]
+    pub sequence_destination: Option<String>,
 }
 
 /// HEX RGB文字列をColor32にパース

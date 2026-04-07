@@ -584,6 +584,8 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
         // 右クリックコンテキストメニュー（選択がある場合のみ）
         if app.ui_state.protocol_selection.range().is_some() {
             let copy_label = app.t.copy;
+            let seq_label = app.t.sequence_diagram;
+            let has_seq = proto.protocol.sequence.is_some();
             let sel_range = app.ui_state.protocol_selection.range().unwrap();
             let matches_ref = &app.protocol_state.matches;
             area_resp.context_menu(|ui| {
@@ -594,6 +596,10 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
                     if !text.is_empty() {
                         ui.ctx().copy_text(text);
                     }
+                    ui.close();
+                }
+                if has_seq && ui.button(seq_label).clicked() {
+                    app.ui_state.sequence_diagram.generate_requested = true;
                     ui.close();
                 }
             });
@@ -1095,9 +1101,13 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         // 右クリックコンテキストメニュー
         if app.ui_state.protocol_selection.range().is_some() {
             let copy_label = app.t.copy;
+            let seq_label = app.t.sequence_diagram;
             let sel_range = app.ui_state.protocol_selection.range().unwrap();
             let matches_ref = &app.protocol_state.matches;
             let proto_ref = app.loaded_protocol.as_ref();
+            let has_seq = proto_ref
+                .map(|p| p.protocol.sequence.is_some())
+                .unwrap_or(false);
             area_resp.context_menu(|ui| {
                 ui.spacing_mut().item_spacing.y = 8.0;
                 if let Some(proto) = proto_ref {
@@ -1109,6 +1119,10 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
                         }
                         ui.close();
                     }
+                }
+                if has_seq && ui.button(seq_label).clicked() {
+                    app.ui_state.sequence_diagram.generate_requested = true;
+                    ui.close();
                 }
             });
         }
@@ -1259,6 +1273,10 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
             // 右クリックコンテキストメニュー
             if app.ui_state.protocol_selection.range().is_some() {
                 let copy_label = app.t.copy;
+                let seq_label = app.t.sequence_diagram;
+                let has_seq = app.loaded_protocol.as_ref()
+                    .map(|p| p.protocol.sequence.is_some())
+                    .unwrap_or(false);
                 let copy_text = app.loaded_protocol.as_ref().map(|proto| {
                     let (lo, hi) = app.ui_state.protocol_selection.range().unwrap();
                     let indices: Vec<usize> = (lo..=hi).collect();
@@ -1271,6 +1289,10 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                             ui.ctx().copy_text(text.clone());
                             ui.close();
                         }
+                    }
+                    if has_seq && ui.button(seq_label).clicked() {
+                        app.ui_state.sequence_diagram.generate_requested = true;
+                        ui.close();
                     }
                 });
             }

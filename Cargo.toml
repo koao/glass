@@ -16,6 +16,8 @@ image = { version = "0.25", default-features = false, features = ["ico", "png"] 
 rfd = "0.15"
 regex = "1"
 toml = "0.8"
+mermaid-rs-renderer = "0.2.1"
+resvg = "0.44"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52.0", features = [
