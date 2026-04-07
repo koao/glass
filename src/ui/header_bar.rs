@@ -2,6 +2,7 @@ use egui::Ui;
 use egui_phosphor::regular;
 
 use crate::app::{DisplayMode, GlassApp, MonitorState, ViewTab};
+use crate::ui::menu::{self, MenuItem};
 
 /// ヘッダーバー描画（安定レイアウト: 全ボタン常時表示）
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
@@ -70,33 +71,26 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             // メニュー（一番右）
             let has_data = app.buffer.byte_count() > 0;
             ui.menu_button(format!("{} {}", regular::LIST, app.t.menu), |ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                // ファイル読み込み (Ctrl+O)
-                if ui
-                    .add_enabled(is_stopped, egui::Button::new(
-                        format!("{}  {}    Ctrl+O", regular::FOLDER_OPEN, app.t.load_file)
-                    ))
-                    .clicked()
-                {
-                    app.load_from_file();
-                    ui.close();
-                }
-                // ファイル保存 (Ctrl+S)
-                if ui
-                    .add_enabled(is_stopped && has_data, egui::Button::new(
-                        format!("{}  {}    Ctrl+S", regular::FLOPPY_DISK, app.t.save_file)
-                    ))
-                    .clicked()
-                {
-                    app.save_to_file();
-                    ui.close();
-                }
-                // スクリーンショット (Ctrl+Shift+S)
-                if ui
-                    .button(format!("{}  {}    Ctrl+Shift+S", regular::CAMERA, app.t.screenshot))
-                    .clicked()
-                {
-                    app.ui_state.screenshot_requested = true;
+                let items = [
+                    MenuItem::new(app.t.load_file)
+                        .icon(regular::FOLDER_OPEN)
+                        .shortcut("Ctrl+O")
+                        .enabled(is_stopped),
+                    MenuItem::new(app.t.save_file)
+                        .icon(regular::FLOPPY_DISK)
+                        .shortcut("Ctrl+S")
+                        .enabled(is_stopped && has_data),
+                    MenuItem::new(app.t.screenshot)
+                        .icon(regular::CAMERA)
+                        .shortcut("Ctrl+Shift+S"),
+                ];
+                if let Some(idx) = menu::show(ui, &items) {
+                    match idx {
+                        0 => app.load_from_file(),
+                        1 => app.save_to_file(),
+                        2 => app.ui_state.screenshot_requested = true,
+                        _ => {}
+                    }
                     ui.close();
                 }
             });

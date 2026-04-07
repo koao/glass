@@ -8,6 +8,7 @@ pub mod status_bar;
 pub mod search;
 pub mod protocol_search;
 pub mod dialog;
+pub mod menu;
 pub mod selection;
 pub mod sequence_diagram;
 pub mod japanese_font;

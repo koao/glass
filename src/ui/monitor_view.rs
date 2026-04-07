@@ -4,6 +4,7 @@ use egui::epaint::TextShape;
 use crate::app::{DisplayMode, GlassApp, MonitorState};
 use crate::model::grid::DisplayCell;
 use crate::settings::MonitorColors;
+use crate::ui::menu::{self, MenuItem};
 use crate::ui::search::SearchState;
 use crate::ui::selection;
 use crate::ui::theme;
@@ -181,24 +182,20 @@ fn draw_context_menu(response: &egui::Response, _ui: &mut Ui, app: &mut GlassApp
         return;
     }
     response.clone().context_menu(|ui| {
-        ui.spacing_mut().item_spacing.y = 8.0;
-        if ui.button(app.t.copy_mixed).clicked() {
+        let items = [
+            MenuItem::new(app.t.copy_mixed),
+            MenuItem::new(app.t.copy_hex),
+            MenuItem::new(app.t.copy_binary),
+        ];
+        if let Some(idx) = menu::show(ui, &items) {
             if let Some(range) = app.ui_state.monitor_selection.range() {
-                let text = selection::format_monitor_mixed(app.display_buffer.cells(), range);
-                ui.ctx().copy_text(text);
-            }
-            ui.close();
-        }
-        if ui.button(app.t.copy_hex).clicked() {
-            if let Some(range) = app.ui_state.monitor_selection.range() {
-                let text = selection::format_monitor_hex(app.display_buffer.cells(), range);
-                ui.ctx().copy_text(text);
-            }
-            ui.close();
-        }
-        if ui.button(app.t.copy_binary).clicked() {
-            if let Some(range) = app.ui_state.monitor_selection.range() {
-                let text = selection::format_monitor_binary(app.display_buffer.cells(), range);
+                let cells = app.display_buffer.cells();
+                let text = match idx {
+                    0 => selection::format_monitor_mixed(cells, range),
+                    1 => selection::format_monitor_hex(cells, range),
+                    2 => selection::format_monitor_binary(cells, range),
+                    _ => String::new(),
+                };
                 ui.ctx().copy_text(text);
             }
             ui.close();

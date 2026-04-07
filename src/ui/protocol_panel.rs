@@ -7,6 +7,7 @@ use egui_phosphor::regular;
 use crate::app::{GlassApp, MonitorState, ProtocolViewMode, WrapSlot, WrapSlotKind, WrapViewState};
 use crate::protocol::definition;
 use crate::protocol::engine::ProtocolEngine;
+use crate::ui::menu::{self, MenuItem};
 use crate::ui::selection;
 use crate::ui::theme;
 
@@ -589,17 +590,24 @@ fn draw_match_list(ui: &mut Ui, app: &mut GlassApp, rows: &[RowEntry], latest_on
             let sel_range = app.ui_state.protocol_selection.range().unwrap();
             let matches_ref = &app.protocol_state.matches;
             area_resp.context_menu(|ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                if ui.button(copy_label).clicked() {
-                    let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
-                    let text = selection::format_protocol_copy(matches_ref, proto, &indices);
-                    if !text.is_empty() {
-                        ui.ctx().copy_text(text);
+                let items = [
+                    MenuItem::new(copy_label),
+                    MenuItem::new(seq_label).enabled(has_seq),
+                ];
+                if let Some(idx) = menu::show(ui, &items) {
+                    match idx {
+                        0 => {
+                            let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
+                            let text = selection::format_protocol_copy(matches_ref, proto, &indices);
+                            if !text.is_empty() {
+                                ui.ctx().copy_text(text);
+                            }
+                        }
+                        1 => {
+                            app.ui_state.sequence_diagram.generate_requested = true;
+                        }
+                        _ => {}
                     }
-                    ui.close();
-                }
-                if has_seq && ui.button(seq_label).clicked() {
-                    app.ui_state.sequence_diagram.generate_requested = true;
                     ui.close();
                 }
             });
@@ -1109,19 +1117,26 @@ fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
                 .map(|p| p.protocol.sequence.is_some())
                 .unwrap_or(false);
             area_resp.context_menu(|ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                if let Some(proto) = proto_ref {
-                    if ui.button(copy_label).clicked() {
-                        let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
-                        let text = selection::format_protocol_copy(matches_ref, proto, &indices);
-                        if !text.is_empty() {
-                            ui.ctx().copy_text(text);
+                let items = [
+                    MenuItem::new(copy_label).enabled(proto_ref.is_some()),
+                    MenuItem::new(seq_label).enabled(has_seq),
+                ];
+                if let Some(idx) = menu::show(ui, &items) {
+                    match idx {
+                        0 => {
+                            if let Some(proto) = proto_ref {
+                                let indices: Vec<usize> = (sel_range.0..=sel_range.1).collect();
+                                let text = selection::format_protocol_copy(matches_ref, proto, &indices);
+                                if !text.is_empty() {
+                                    ui.ctx().copy_text(text);
+                                }
+                            }
                         }
-                        ui.close();
+                        1 => {
+                            app.ui_state.sequence_diagram.generate_requested = true;
+                        }
+                        _ => {}
                     }
-                }
-                if has_seq && ui.button(seq_label).clicked() {
-                    app.ui_state.sequence_diagram.generate_requested = true;
                     ui.close();
                 }
             });
@@ -1283,15 +1298,23 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                     selection::format_protocol_copy(&app.protocol_state.matches, proto, &indices)
                 });
                 area_resp.context_menu(|ui| {
-                    ui.spacing_mut().item_spacing.y = 8.0;
-                    if let Some(text) = &copy_text {
-                        if !text.is_empty() && ui.button(copy_label).clicked() {
-                            ui.ctx().copy_text(text.clone());
-                            ui.close();
+                    let copy_enabled = copy_text.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
+                    let items = [
+                        MenuItem::new(copy_label).enabled(copy_enabled),
+                        MenuItem::new(seq_label).enabled(has_seq),
+                    ];
+                    if let Some(idx) = menu::show(ui, &items) {
+                        match idx {
+                            0 => {
+                                if let Some(text) = &copy_text {
+                                    ui.ctx().copy_text(text.clone());
+                                }
+                            }
+                            1 => {
+                                app.ui_state.sequence_diagram.generate_requested = true;
+                            }
+                            _ => {}
                         }
-                    }
-                    if has_seq && ui.button(seq_label).clicked() {
-                        app.ui_state.sequence_diagram.generate_requested = true;
                         ui.close();
                     }
                 });
