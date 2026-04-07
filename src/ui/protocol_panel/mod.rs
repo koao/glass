@@ -433,21 +433,18 @@ pub(super) fn build_row_entries(app: &GlassApp) -> Vec<RowEntry> {
     let mut msg_count = 0usize;
 
     for (i, matched) in app.protocol_state.matches.iter().enumerate() {
-        if let Some(def_idx) = matched.message_def_idx {
-            if app
+        if let Some(def_idx) = matched.message_def_idx
+            && app
                 .ui_state
                 .protocol_hidden_ids
                 .contains(&proto.messages[def_idx].id)
-            {
-                continue;
-            }
+        {
+            continue;
         }
-        if show_idle {
-            if let Some(idle_ms) = matched.preceding_idle_ms {
-                rows.push(RowEntry::Idle(idle_ms));
-            }
+        if show_idle && let Some(idle_ms) = matched.preceding_idle_ms {
+            rows.push(RowEntry::Idle(idle_ms));
         }
-        rows.push(RowEntry::Message(i, msg_count % 2 == 0));
+        rows.push(RowEntry::Message(i, msg_count.is_multiple_of(2)));
         msg_count += 1;
     }
     rows

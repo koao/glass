@@ -67,16 +67,16 @@ fn process_bytes(
         let offset = byte_duration * (n - 1 - i) as u32;
         let ts = now - offset;
 
-        if let Some(last) = *last_byte_time {
-            if let Some(elapsed) = ts.checked_duration_since(last) {
-                // UARTは全ビット受信後にバイト確定するため、
-                // 測定値に先頭バイトの送信時間が含まれる → 補正
-                let corrected = elapsed.saturating_sub(byte_duration);
-                if corrected >= idle_threshold {
-                    let ms = corrected.as_secs_f64() * 1000.0;
-                    if sender.send(DataEntry::Idle(ms)).is_err() {
-                        return;
-                    }
+        if let Some(last) = *last_byte_time
+            && let Some(elapsed) = ts.checked_duration_since(last)
+        {
+            // UARTは全ビット受信後にバイト確定するため、
+            // 測定値に先頭バイトの送信時間が含まれる → 補正
+            let corrected = elapsed.saturating_sub(byte_duration);
+            if corrected >= idle_threshold {
+                let ms = corrected.as_secs_f64() * 1000.0;
+                if sender.send(DataEntry::Idle(ms)).is_err() {
+                    return;
                 }
             }
         }
@@ -106,7 +106,7 @@ mod win32_receiver {
             fn timeBeginPeriod(uPeriod: u32) -> u32;
         }
         unsafe {
-            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST as i32);
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
             timeBeginPeriod(1);
         }
     }
@@ -162,13 +162,13 @@ mod win32_receiver {
             dcb.BaudRate = config.baud_rate;
             dcb.ByteSize = config.data_bits;
             dcb.Parity = match config.parity {
-                ParitySetting::None => NOPARITY as u8,
-                ParitySetting::Odd => ODDPARITY as u8,
-                ParitySetting::Even => EVENPARITY as u8,
+                ParitySetting::None => NOPARITY,
+                ParitySetting::Odd => ODDPARITY,
+                ParitySetting::Even => EVENPARITY,
             };
             dcb.StopBits = match config.stop_bits {
-                StopBitsSetting::One => ONESTOPBIT as u8,
-                StopBitsSetting::Two => TWOSTOPBITS as u8,
+                StopBitsSetting::One => ONESTOPBIT,
+                StopBitsSetting::Two => TWOSTOPBITS,
             };
             // fBinary=1, フロー制御すべて無効
             dcb._bitfield = 0x0001;
@@ -304,7 +304,7 @@ mod win32_receiver {
 
                     if read_ret == 0 && unsafe { GetLastError() } == ERROR_IO_PENDING {
                         let ok = unsafe {
-                            GetOverlappedResult(handle, &mut read_overlapped, &mut bytes_read, TRUE)
+                            GetOverlappedResult(handle, &read_overlapped, &mut bytes_read, TRUE)
                         };
                         if ok == 0 {
                             break;

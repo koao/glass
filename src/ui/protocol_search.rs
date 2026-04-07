@@ -22,7 +22,7 @@ impl SearchExpr {
                 let text_hit = searchable_lower.contains(text.as_str());
                 let byte_hit = hex_pat
                     .as_ref()
-                    .map_or(false, |pat| contains_bytes(frame_bytes, pat));
+                    .is_some_and(|pat| contains_bytes(frame_bytes, pat));
                 text_hit || byte_hit
             }
             SearchExpr::And(exprs) => exprs
@@ -41,6 +41,7 @@ impl SearchExpr {
 /// - `A B`     → And([Term(a), Term(b)])  （スペース区切り = 暗黙AND）
 /// - `"A B"`   → Term("a b")             （クォートでスペースをエスケープ）
 /// - OR で分割 → 各ブロック内を AND/スペースで分割
+///
 /// ※ クォート内の AND / OR はキーワードとして扱わない
 fn parse_query(input: &str) -> Option<SearchExpr> {
     let input = input.trim();
@@ -204,7 +205,7 @@ impl ProtocolSearchState {
     ) {
         if self.has_searched && !self.query.is_empty() {
             let last_id = matches.last().map(|m| m.id);
-            if last_id.map_or(false, |id| id >= self.next_scan_id) {
+            if last_id.is_some_and(|id| id >= self.next_scan_id) {
                 self.run_search(matches, proto, hidden_ids);
             }
         }
@@ -230,10 +231,10 @@ impl ProtocolSearchState {
         let mut buf = String::new();
 
         for matched in matches.iter().filter(|m| m.id >= self.next_scan_id) {
-            if let Some(def_idx) = matched.message_def_idx {
-                if hidden_ids.contains(&proto.messages[def_idx].id) {
-                    continue;
-                }
+            if let Some(def_idx) = matched.message_def_idx
+                && hidden_ids.contains(&proto.messages[def_idx].id)
+            {
+                continue;
             }
 
             buf.clear();

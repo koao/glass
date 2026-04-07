@@ -169,8 +169,7 @@ fn build_mermaid(
     let mut last_dest: Option<String> = None;
 
     let end = range.1.min(matches.len().saturating_sub(1));
-    for idx in range.0..=end {
-        let matched = &matches[idx];
+    for matched in &matches[range.0..=end] {
         let msg_def = matched.message_def_idx.map(|i| &proto.messages[i]);
         let (source, dest) = resolve_endpoints(matched, msg_def, seq_config);
         let label = build_label(matched, msg_def);
@@ -282,13 +281,14 @@ fn build_mermaid(
     let last_p = participants.last().cloned().unwrap_or_default();
 
     for arrow in &arrows {
-        if let Some(ms) = arrow.idle_ms {
-            if !first_p.is_empty() && !last_p.is_empty() {
-                lines.push(format!(
-                    "    Note over {},{}: IDLE {}ms",
-                    first_p, last_p, ms as u64
-                ));
-            }
+        if let Some(ms) = arrow.idle_ms
+            && !first_p.is_empty()
+            && !last_p.is_empty()
+        {
+            lines.push(format!(
+                "    Note over {},{}: IDLE {}ms",
+                first_p, last_p, ms as u64
+            ));
         }
 
         if arrow.is_broadcast {
@@ -577,21 +577,19 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
                         if ui
                             .button(format!("{}  {}", regular::FLOPPY_DISK, app.t.save_svg))
                             .clicked()
+                            && let Err(e) = save_svg(&app.ui_state.sequence_diagram.svg)
                         {
-                            if let Err(e) = save_svg(&app.ui_state.sequence_diagram.svg) {
-                                app.show_error(&e);
-                            }
+                            app.show_error(&e);
                         }
                         if ui
                             .button(format!("{}  {}", regular::IMAGE, app.t.save_png))
                             .clicked()
-                        {
-                            if let Err(e) = save_png(
+                            && let Err(e) = save_png(
                                 &app.ui_state.sequence_diagram.png_rgba,
                                 app.ui_state.sequence_diagram.png_size,
-                            ) {
-                                app.show_error(&e);
-                            }
+                            )
+                        {
+                            app.show_error(&e);
                         }
                     });
                     ui.separator();

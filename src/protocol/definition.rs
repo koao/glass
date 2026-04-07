@@ -178,10 +178,10 @@ pub fn scan_protocols(dir: &Path) -> Vec<(PathBuf, String)> {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
-            if let Ok(proto) = load_protocol(&path) {
-                result.push((path, proto.protocol.title));
-            }
+        if path.extension().and_then(|e| e.to_str()) == Some("toml")
+            && let Ok(proto) = load_protocol(&path)
+        {
+            result.push((path, proto.protocol.title));
         }
     }
     result.sort_by(|a, b| a.1.cmp(&b.1));

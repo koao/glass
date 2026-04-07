@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 /// 言語設定
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub enum Language {
+    #[default]
     Ja,
     En,
 }
@@ -24,12 +25,6 @@ impl Language {
             Self::Ja => &JA,
             Self::En => &EN,
         }
-    }
-}
-
-impl Default for Language {
-    fn default() -> Self {
-        Self::Ja
     }
 }
 

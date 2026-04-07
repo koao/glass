@@ -67,11 +67,9 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
     });
 
     if resp.should_close() || close {
-        if confirmed {
-            if let Some(action) = on_confirm {
-                match action {
-                    ConfirmAction::ClearAll => app.clear_all(),
-                }
+        if confirmed && let Some(action) = on_confirm {
+            match action {
+                ConfirmAction::ClearAll => app.clear_all(),
             }
         }
         app.ui_state.dialog = None;

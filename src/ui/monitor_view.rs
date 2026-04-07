@@ -127,6 +127,7 @@ fn hit_test_cell(
 }
 
 /// 選択のマウスイベント処理
+#[allow(clippy::too_many_arguments)]
 fn handle_selection_input(
     ui: &Ui,
     response: &egui::Response,
@@ -141,45 +142,40 @@ fn handle_selection_input(
     let shift = ui.input(|i| i.modifiers.shift);
 
     // クリック: 選択開始/クリア
-    if response.clicked() {
-        if let Some(pos) = response.interact_pointer_pos() {
-            if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
-                if let Some(disp_idx) = cell_to_disp(cell_idx) {
-                    if shift {
-                        app.ui_state.monitor_selection.extend(disp_idx);
-                    } else {
-                        app.ui_state.monitor_selection.start(disp_idx);
-                    }
+    if response.clicked()
+        && let Some(pos) = response.interact_pointer_pos()
+    {
+        if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
+            if let Some(disp_idx) = cell_to_disp(cell_idx) {
+                if shift {
+                    app.ui_state.monitor_selection.extend(disp_idx);
+                } else {
+                    app.ui_state.monitor_selection.start(disp_idx);
                 }
-            } else {
-                // グリッド外クリック: 選択解除
-                app.ui_state.monitor_selection.clear();
             }
+        } else {
+            // グリッド外クリック: 選択解除
+            app.ui_state.monitor_selection.clear();
         }
     }
 
     // ドラッグ開始: 選択開始
-    if response.drag_started_by(PointerButton::Primary) {
-        if let Some(pos) = response.interact_pointer_pos() {
-            if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
-                if let Some(disp_idx) = cell_to_disp(cell_idx) {
-                    if !shift {
-                        app.ui_state.monitor_selection.start(disp_idx);
-                    }
-                }
-            }
-        }
+    if response.drag_started_by(PointerButton::Primary)
+        && let Some(pos) = response.interact_pointer_pos()
+        && let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx)
+        && let Some(disp_idx) = cell_to_disp(cell_idx)
+        && !shift
+    {
+        app.ui_state.monitor_selection.start(disp_idx);
     }
 
     // ドラッグ中: 選択範囲を拡張
-    if response.dragged_by(PointerButton::Primary) {
-        if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
-            if let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx) {
-                if let Some(disp_idx) = cell_to_disp(cell_idx) {
-                    app.ui_state.monitor_selection.extend(disp_idx);
-                }
-            }
-        }
+    if response.dragged_by(PointerButton::Primary)
+        && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+        && let Some(cell_idx) = hit_test_cell(pos, rect, cols, cell_w, cell_h, max_idx)
+        && let Some(disp_idx) = cell_to_disp(cell_idx)
+    {
+        app.ui_state.monitor_selection.extend(disp_idx);
     }
 }
 
@@ -302,21 +298,21 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
 
     // ライブIDLEカウンタ (Running時のみ)
     let mut cursor_pos = buf_len % total_cells;
-    if app.state == MonitorState::Running {
-        if let Some(last_time) = app.last_byte_time {
-            let elapsed_ms = last_time.elapsed().as_millis() as u64;
-            let threshold = app.idle_threshold_ms as u64;
-            if threshold > 0 && elapsed_ms > threshold {
-                // 0埋め4桁カウンタ
-                let count = (elapsed_ms / threshold).min(9999);
-                let live_text = format!("{:04}", count);
-                for (i, ch) in live_text.chars().enumerate() {
-                    let idx = (buf_len + i) % total_cells;
-                    let cr = cell_rect(rect, idx, cols, cell_w, cell_h);
-                    draw_idle_char(&painter, cr, ch, &app.monitor_colors);
-                }
-                cursor_pos = (buf_len + live_text.len()) % total_cells;
+    if app.state == MonitorState::Running
+        && let Some(last_time) = app.last_byte_time
+    {
+        let elapsed_ms = last_time.elapsed().as_millis() as u64;
+        let threshold = app.idle_threshold_ms as u64;
+        if threshold > 0 && elapsed_ms > threshold {
+            // 0埋め4桁カウンタ
+            let count = (elapsed_ms / threshold).min(9999);
+            let live_text = format!("{:04}", count);
+            for (i, ch) in live_text.chars().enumerate() {
+                let idx = (buf_len + i) % total_cells;
+                let cr = cell_rect(rect, idx, cols, cell_w, cell_h);
+                draw_idle_char(&painter, cr, ch, &app.monitor_colors);
             }
+            cursor_pos = (buf_len + live_text.len()) % total_cells;
         }
     }
 
@@ -340,7 +336,7 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
         ui.colored_label(theme::TEXT_MUTED, app.t.no_data);
         return;
     }
-    let total_rows = (total_cells + cols - 1) / cols;
+    let total_rows = total_cells.div_ceil(cols);
 
     // スクロール先セルインデックスを計算
     let scroll_to_cell: Option<usize> = app.search.take_scroll_target().and_then(|entry_idx| {
@@ -470,7 +466,7 @@ fn draw_data_byte(
             );
         }
         DisplayMode::Ascii => {
-            if byte >= 0x21 && byte <= 0x7E {
+            if (0x21..=0x7E).contains(&byte) {
                 let font_id = FontId::monospace(MAIN_FONT_SIZE);
                 painter.text(
                     rect.center(),

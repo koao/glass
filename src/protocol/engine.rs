@@ -160,8 +160,8 @@ impl ProtocolState {
             self.clear();
         }
 
-        for i in self.processed_count..entries.len() {
-            match &entries[i] {
+        for entry in entries.iter().skip(self.processed_count) {
+            match entry {
                 DataEntry::Byte(b, _) => {
                     if engine.has_rules() {
                         self.process_byte_ruled(*b, engine);

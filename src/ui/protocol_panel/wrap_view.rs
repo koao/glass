@@ -301,27 +301,24 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
     let start = app.ui_state.wrap.rendered_count;
     for i in start..total_matches {
         let matched = &app.protocol_state.matches[i];
-        if let Some(def_idx) = matched.message_def_idx {
-            if app
+        if let Some(def_idx) = matched.message_def_idx
+            && app
                 .ui_state
                 .protocol_hidden_ids
                 .contains(&proto.messages[def_idx].id)
-            {
-                continue;
-            }
+        {
+            continue;
         }
 
-        if show_idle {
-            if let Some(idle_ms) = matched.preceding_idle_ms {
-                let idle_width = measure_idle_width(ui.painter(), idle_ms);
-                wrap_push_slot(
-                    &mut app.ui_state.wrap,
-                    max_rows,
-                    available_width,
-                    WrapSlotKind::Idle(idle_ms),
-                    idle_width,
-                );
-            }
+        if show_idle && let Some(idle_ms) = matched.preceding_idle_ms {
+            let idle_width = measure_idle_width(ui.painter(), idle_ms);
+            wrap_push_slot(
+                &mut app.ui_state.wrap,
+                max_rows,
+                available_width,
+                WrapSlotKind::Idle(idle_ms),
+                idle_width,
+            );
         }
 
         let msg_width = measure_message_width(ui, app, i);
@@ -370,36 +367,33 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         };
 
         if area_resp.double_clicked() {
-            if let Some(pos) = area_resp.interact_pointer_pos() {
-                if let Some(mid) = hit_slot_match(pos) {
-                    toggle_id = Some(mid);
-                }
+            if let Some(pos) = area_resp.interact_pointer_pos()
+                && let Some(mid) = hit_slot_match(pos)
+            {
+                toggle_id = Some(mid);
             }
-        } else if area_resp.clicked() {
-            if let Some(pos) = area_resp.interact_pointer_pos() {
-                if let Some(mid) = hit_slot_match(pos) {
-                    let shift = ui.input(|i| i.modifiers.shift);
-                    if shift {
-                        app.ui_state.protocol_selection.extend(mid);
-                    } else {
-                        app.ui_state.protocol_selection.start(mid);
-                    }
-                }
-            }
-        }
-        if area_resp.drag_started_by(egui::PointerButton::Primary) {
-            if let Some(pos) = area_resp.interact_pointer_pos() {
-                if let Some(mid) = hit_slot_match(pos) {
-                    app.ui_state.protocol_selection.start(mid);
-                }
+        } else if area_resp.clicked()
+            && let Some(pos) = area_resp.interact_pointer_pos()
+            && let Some(mid) = hit_slot_match(pos)
+        {
+            let shift = ui.input(|i| i.modifiers.shift);
+            if shift {
+                app.ui_state.protocol_selection.extend(mid);
+            } else {
+                app.ui_state.protocol_selection.start(mid);
             }
         }
-        if area_resp.dragged_by(egui::PointerButton::Primary) {
-            if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
-                if let Some(mid) = hit_slot_match(pos) {
-                    app.ui_state.protocol_selection.extend(mid);
-                }
-            }
+        if area_resp.drag_started_by(egui::PointerButton::Primary)
+            && let Some(pos) = area_resp.interact_pointer_pos()
+            && let Some(mid) = hit_slot_match(pos)
+        {
+            app.ui_state.protocol_selection.start(mid);
+        }
+        if area_resp.dragged_by(egui::PointerButton::Primary)
+            && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+            && let Some(mid) = hit_slot_match(pos)
+        {
+            app.ui_state.protocol_selection.extend(mid);
         }
 
         if app.ui_state.protocol_selection.range().is_some() {
@@ -424,17 +418,15 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
                 if let Some(idx) = menu::show(ui, &items) {
                     match idx {
                         0 => {
-                            if let Some(proto) = proto_ref {
-                                if lo <= hi && !matches_ref.is_empty() {
-                                    let indices: Vec<usize> = (lo..=hi).collect();
-                                    let text = selection::format_protocol_copy(
-                                        matches_ref,
-                                        proto,
-                                        &indices,
-                                    );
-                                    if !text.is_empty() {
-                                        ui.ctx().copy_text(text);
-                                    }
+                            if let Some(proto) = proto_ref
+                                && lo <= hi
+                                && !matches_ref.is_empty()
+                            {
+                                let indices: Vec<usize> = (lo..=hi).collect();
+                                let text =
+                                    selection::format_protocol_copy(matches_ref, proto, &indices);
+                                if !text.is_empty() {
+                                    ui.ctx().copy_text(text);
                                 }
                             }
                         }
@@ -567,36 +559,33 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
             };
 
             if area_resp.double_clicked() {
-                if let Some(pos) = area_resp.interact_pointer_pos() {
-                    if let Some(mid) = hit_slot_match(pos) {
-                        toggle_id = Some(mid);
-                    }
+                if let Some(pos) = area_resp.interact_pointer_pos()
+                    && let Some(mid) = hit_slot_match(pos)
+                {
+                    toggle_id = Some(mid);
                 }
-            } else if area_resp.clicked() {
-                if let Some(pos) = area_resp.interact_pointer_pos() {
-                    if let Some(mid) = hit_slot_match(pos) {
-                        let shift = ui.input(|i| i.modifiers.shift);
-                        if shift {
-                            app.ui_state.protocol_selection.extend(mid);
-                        } else {
-                            app.ui_state.protocol_selection.start(mid);
-                        }
-                    }
-                }
-            }
-            if area_resp.drag_started_by(egui::PointerButton::Primary) {
-                if let Some(pos) = area_resp.interact_pointer_pos() {
-                    if let Some(mid) = hit_slot_match(pos) {
-                        app.ui_state.protocol_selection.start(mid);
-                    }
+            } else if area_resp.clicked()
+                && let Some(pos) = area_resp.interact_pointer_pos()
+                && let Some(mid) = hit_slot_match(pos)
+            {
+                let shift = ui.input(|i| i.modifiers.shift);
+                if shift {
+                    app.ui_state.protocol_selection.extend(mid);
+                } else {
+                    app.ui_state.protocol_selection.start(mid);
                 }
             }
-            if area_resp.dragged_by(egui::PointerButton::Primary) {
-                if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
-                    if let Some(mid) = hit_slot_match(pos) {
-                        app.ui_state.protocol_selection.extend(mid);
-                    }
-                }
+            if area_resp.drag_started_by(egui::PointerButton::Primary)
+                && let Some(pos) = area_resp.interact_pointer_pos()
+                && let Some(mid) = hit_slot_match(pos)
+            {
+                app.ui_state.protocol_selection.start(mid);
+            }
+            if area_resp.dragged_by(egui::PointerButton::Primary)
+                && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+                && let Some(mid) = hit_slot_match(pos)
+            {
+                app.ui_state.protocol_selection.extend(mid);
             }
 
             if app.ui_state.protocol_selection.range().is_some() {
@@ -656,7 +645,7 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
 
             let painter = ui.painter_at(rect);
 
-            for row in first_row..last_row {
+            for (row, line) in lines.iter().enumerate().take(last_row).skip(first_row) {
                 let y_top = rect.min.y + row as f32 * row_h;
                 let row_rect = Rect::from_min_size(
                     egui::pos2(rect.min.x, y_top),
@@ -673,7 +662,7 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                     ui.scroll_to_rect(row_rect, Some(Align::Center));
                 }
 
-                paint_wrap_slots(&painter, app, &lines[row], rect.min.x, &row_rect, row_h);
+                paint_wrap_slots(&painter, app, line, rect.min.x, &row_rect, row_h);
             }
         });
 
@@ -697,30 +686,27 @@ fn build_stopped_layout(ui: &Ui, app: &mut GlassApp, available_width: f32) {
     let total_matches = app.protocol_state.matches.len();
     for i in 0..total_matches {
         let matched = &app.protocol_state.matches[i];
-        if let Some(def_idx) = matched.message_def_idx {
-            if app
+        if let Some(def_idx) = matched.message_def_idx
+            && app
                 .ui_state
                 .protocol_hidden_ids
                 .contains(&proto.messages[def_idx].id)
-            {
-                continue;
-            }
+        {
+            continue;
         }
 
-        if show_idle {
-            if let Some(idle_ms) = matched.preceding_idle_ms {
-                let idle_width = measure_idle_width(painter, idle_ms);
-                if current_x + idle_width > available_width && current_x > 0.0 {
-                    lines.push(std::mem::take(&mut current_line));
-                    current_x = 0.0;
-                }
-                current_line.push(WrapSlot {
-                    kind: WrapSlotKind::Idle(idle_ms),
-                    x: current_x,
-                    width: idle_width,
-                });
-                current_x += idle_width;
+        if show_idle && let Some(idle_ms) = matched.preceding_idle_ms {
+            let idle_width = measure_idle_width(painter, idle_ms);
+            if current_x + idle_width > available_width && current_x > 0.0 {
+                lines.push(std::mem::take(&mut current_line));
+                current_x = 0.0;
             }
+            current_line.push(WrapSlot {
+                kind: WrapSlotKind::Idle(idle_ms),
+                x: current_x,
+                width: idle_width,
+            });
+            current_x += idle_width;
         }
 
         let msg_width = measure_message_width(ui, app, i);

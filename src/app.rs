@@ -355,23 +355,23 @@ impl GlassApp {
     fn setup_fonts(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
 
-        if let Some((path, _)) = crate::ui::japanese_font::chosen_font() {
-            if let Ok(font_data) = std::fs::read(path) {
-                fonts.font_data.insert(
-                    "japanese".to_string(),
-                    egui::FontData::from_owned(font_data).into(),
-                );
-                fonts
-                    .families
-                    .get_mut(&egui::FontFamily::Proportional)
-                    .unwrap()
-                    .push("japanese".to_string());
-                fonts
-                    .families
-                    .get_mut(&egui::FontFamily::Monospace)
-                    .unwrap()
-                    .push("japanese".to_string());
-            }
+        if let Some((path, _)) = crate::ui::japanese_font::chosen_font()
+            && let Ok(font_data) = std::fs::read(path)
+        {
+            fonts.font_data.insert(
+                "japanese".to_string(),
+                egui::FontData::from_owned(font_data).into(),
+            );
+            fonts
+                .families
+                .get_mut(&egui::FontFamily::Proportional)
+                .unwrap()
+                .push("japanese".to_string());
+            fonts
+                .families
+                .get_mut(&egui::FontFamily::Monospace)
+                .unwrap()
+                .push("japanese".to_string());
         }
 
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
@@ -539,25 +539,22 @@ impl GlassApp {
 
     /// プロトコル選択範囲をコピー
     pub fn copy_protocol_selection(&mut self, ui: &mut egui::Ui) {
-        if let Some((lo_id, hi_id)) = self.ui_state.protocol_selection.range() {
-            if let Some(proto) = &self.loaded_protocol {
-                let lo = self.protocol_state.position_by_id(lo_id).unwrap_or(0);
-                let hi = self
-                    .protocol_state
-                    .position_by_id(hi_id)
-                    .unwrap_or_else(|| self.protocol_state.matches.len().saturating_sub(1));
-                if lo > hi || self.protocol_state.matches.is_empty() {
-                    return;
-                }
-                let indices: Vec<usize> = (lo..=hi).collect();
-                let text = ui::selection::format_protocol_copy(
-                    &self.protocol_state.matches,
-                    proto,
-                    &indices,
-                );
-                if !text.is_empty() {
-                    ui.ctx().copy_text(text);
-                }
+        if let Some((lo_id, hi_id)) = self.ui_state.protocol_selection.range()
+            && let Some(proto) = &self.loaded_protocol
+        {
+            let lo = self.protocol_state.position_by_id(lo_id).unwrap_or(0);
+            let hi = self
+                .protocol_state
+                .position_by_id(hi_id)
+                .unwrap_or_else(|| self.protocol_state.matches.len().saturating_sub(1));
+            if lo > hi || self.protocol_state.matches.is_empty() {
+                return;
+            }
+            let indices: Vec<usize> = (lo..=hi).collect();
+            let text =
+                ui::selection::format_protocol_copy(&self.protocol_state.matches, proto, &indices);
+            if !text.is_empty() {
+                ui.ctx().copy_text(text);
             }
         }
     }
@@ -624,10 +621,10 @@ impl GlassApp {
         if let Some(path) = path {
             let [w, h] = image.size;
             let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
-            if let Some(img) = image::RgbaImage::from_raw(w as u32, h as u32, rgba) {
-                if let Err(e) = img.save(&path) {
-                    self.show_error(&format!("{}: {}", self.t.err_screenshot, e));
-                }
+            if let Some(img) = image::RgbaImage::from_raw(w as u32, h as u32, rgba)
+                && let Err(e) = img.save(&path)
+            {
+                self.show_error(&format!("{}: {}", self.t.err_screenshot, e));
             }
         }
     }
@@ -706,11 +703,11 @@ impl eframe::App for GlassApp {
         self.drain_channel();
 
         // プロトコルエンジンの増分同期（一時停止中はスキップ）
-        if self.state != MonitorState::Paused {
-            if let Some(engine) = &self.protocol_engine {
-                self.protocol_state
-                    .sync_entries(self.buffer.entries(), engine);
-            }
+        if self.state != MonitorState::Paused
+            && let Some(engine) = &self.protocol_engine
+        {
+            self.protocol_state
+                .sync_entries(self.buffer.entries(), engine);
         }
 
         // 受信中の検索自動更新

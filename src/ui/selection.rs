@@ -175,10 +175,10 @@ pub fn format_protocol_copy(
         let matched = &matches[idx];
 
         // IDLE行
-        if let Some(idle_ms) = matched.preceding_idle_ms {
-            if !out.is_empty() {
-                out.push_str(&format!("--- IDLE {}ms ---\n", idle_ms as u64));
-            }
+        if let Some(idle_ms) = matched.preceding_idle_ms
+            && !out.is_empty()
+        {
+            out.push_str(&format!("--- IDLE {}ms ---\n", idle_ms as u64));
         }
 
         // メッセージ行

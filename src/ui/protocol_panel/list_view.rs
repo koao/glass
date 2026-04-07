@@ -71,36 +71,33 @@ pub(super) fn draw_match_list(
         };
 
         if area_resp.double_clicked() {
-            if let Some(pos) = area_resp.interact_pointer_pos() {
-                if let Some(mid) = hit_row_match(pos) {
-                    toggle_id = Some(mid);
-                }
+            if let Some(pos) = area_resp.interact_pointer_pos()
+                && let Some(mid) = hit_row_match(pos)
+            {
+                toggle_id = Some(mid);
             }
-        } else if area_resp.clicked() {
-            if let Some(pos) = area_resp.interact_pointer_pos() {
-                if let Some(mid) = hit_row_match(pos) {
-                    let shift = ui.input(|i| i.modifiers.shift);
-                    if shift {
-                        app.ui_state.protocol_selection.extend(mid);
-                    } else {
-                        app.ui_state.protocol_selection.start(mid);
-                    }
-                }
-            }
-        }
-        if area_resp.drag_started_by(egui::PointerButton::Primary) {
-            if let Some(pos) = area_resp.interact_pointer_pos() {
-                if let Some(mid) = hit_row_match(pos) {
-                    app.ui_state.protocol_selection.start(mid);
-                }
+        } else if area_resp.clicked()
+            && let Some(pos) = area_resp.interact_pointer_pos()
+            && let Some(mid) = hit_row_match(pos)
+        {
+            let shift = ui.input(|i| i.modifiers.shift);
+            if shift {
+                app.ui_state.protocol_selection.extend(mid);
+            } else {
+                app.ui_state.protocol_selection.start(mid);
             }
         }
-        if area_resp.dragged_by(egui::PointerButton::Primary) {
-            if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
-                if let Some(mid) = hit_row_match(pos) {
-                    app.ui_state.protocol_selection.extend(mid);
-                }
-            }
+        if area_resp.drag_started_by(egui::PointerButton::Primary)
+            && let Some(pos) = area_resp.interact_pointer_pos()
+            && let Some(mid) = hit_row_match(pos)
+        {
+            app.ui_state.protocol_selection.start(mid);
+        }
+        if area_resp.dragged_by(egui::PointerButton::Primary)
+            && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+            && let Some(mid) = hit_row_match(pos)
+        {
+            app.ui_state.protocol_selection.extend(mid);
         }
 
         if app.ui_state.protocol_selection.range().is_some() {
