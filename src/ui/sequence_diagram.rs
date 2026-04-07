@@ -7,6 +7,7 @@ use egui_phosphor::regular;
 use crate::app::GlassApp;
 use crate::protocol::definition::{FieldDef, MessageDef, ProtocolFile, SequenceConfig};
 use crate::protocol::engine::MatchedMessage;
+use crate::ui::japanese_font;
 use crate::ui::protocol_panel::extract_ascii;
 use crate::ui::theme;
 
@@ -276,6 +277,9 @@ fn color32_to_hex(c: egui::Color32) -> String {
 /// アプリの配色に合わせたダークテーマ
 fn dark_theme() -> mermaid_rs_renderer::Theme {
     let mut t = mermaid_rs_renderer::Theme::modern();
+    if let Some((_, family)) = japanese_font::chosen_font() {
+        t.font_family = format!("{}, sans-serif", family);
+    }
     t.background = color32_to_hex(theme::GRID_BG);
     t.text_color = "#C8CDD5".to_string();
     t.primary_text_color = "#C8CDD5".to_string();
@@ -300,12 +304,18 @@ fn render_svg(mermaid_text: &str) -> Result<String, String> {
         .map_err(|e| format!("Mermaid render error: {}", e))
 }
 
-/// キャッシュ済みフォントDB（load_system_fontsは重いため初回のみ実行）
+/// キャッシュ済みフォントDB（UIと同じ日本語フォントのみロード）
 fn cached_fontdb() -> Arc<resvg::usvg::fontdb::Database> {
     static FONTDB: OnceLock<Arc<resvg::usvg::fontdb::Database>> = OnceLock::new();
     FONTDB.get_or_init(|| {
         let mut db = resvg::usvg::fontdb::Database::new();
-        db.load_system_fonts();
+        if let Some((path, _)) = japanese_font::chosen_font() {
+            let _ = db.load_font_file(path);
+        }
+        // フォールバック: 日本語フォントが見つからない場合はシステムフォント
+        if db.is_empty() {
+            db.load_system_fonts();
+        }
         Arc::new(db)
     }).clone()
 }

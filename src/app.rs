@@ -357,13 +357,8 @@ impl GlassApp {
     /// 日本語対応フォントを設定
     fn setup_fonts(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
-        let font_paths = [
-            "C:\\Windows\\Fonts\\meiryo.ttc",
-            "C:\\Windows\\Fonts\\msgothic.ttc",
-            "C:\\Windows\\Fonts\\YuGothR.ttc",
-        ];
 
-        for path in &font_paths {
+        if let Some((path, _)) = crate::ui::japanese_font::chosen_font() {
             if let Ok(font_data) = std::fs::read(path) {
                 fonts.font_data.insert(
                     "japanese".to_string(),
@@ -379,7 +374,6 @@ impl GlassApp {
                     .get_mut(&egui::FontFamily::Monospace)
                     .unwrap()
                     .push("japanese".to_string());
-                break;
             }
         }
 
