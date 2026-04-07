@@ -48,6 +48,47 @@ impl Selection {
     }
 }
 
+/// プロトコル選択（match ID ベース、trim 耐性あり）
+pub struct IdSelection {
+    pub anchor: Option<u64>,
+    pub cursor: Option<u64>,
+}
+
+impl IdSelection {
+    pub fn new() -> Self {
+        Self { anchor: None, cursor: None }
+    }
+
+    pub fn range(&self) -> Option<(u64, u64)> {
+        match (self.anchor, self.cursor) {
+            (Some(a), Some(c)) => Some((a.min(c), a.max(c))),
+            (Some(a), None) => Some((a, a)),
+            _ => None,
+        }
+    }
+
+    pub fn contains(&self, id: u64) -> bool {
+        match self.range() {
+            Some((lo, hi)) => id >= lo && id <= hi,
+            None => false,
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.anchor = None;
+        self.cursor = None;
+    }
+
+    pub fn start(&mut self, id: u64) {
+        self.anchor = Some(id);
+        self.cursor = Some(id);
+    }
+
+    pub fn extend(&mut self, id: u64) {
+        self.cursor = Some(id);
+    }
+}
+
 // ===== モニタビュー用コピーフォーマッタ =====
 
 /// 混合形式: 印字可能ASCIIはそのまま、それ以外は $HH

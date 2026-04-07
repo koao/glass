@@ -23,7 +23,7 @@ use crate::settings::AppSettings;
 use crate::ui;
 use crate::ui::search::SearchState;
 use crate::ui::protocol_search::ProtocolSearchState;
-use crate::ui::selection::Selection;
+use crate::ui::selection::{IdSelection, Selection};
 
 /// ダイアログの種類
 #[derive(Clone)]
@@ -66,8 +66,8 @@ pub enum ProtocolViewMode {
 /// ラップ表示のスロット種別
 #[derive(Clone, Debug)]
 pub enum WrapSlotKind {
-    /// メッセージ（matchesインデックス）
-    Message(usize),
+    /// メッセージ（matchesインデックス＋match ID）
+    Message { idx: usize, id: u64 },
     /// IDLE（時間ms）
     Idle(f64),
 }
@@ -178,8 +178,8 @@ pub struct UiState {
     pub screenshot_pending: bool,
     /// 最小ウィンドウサイズ適用済みフラグ
     pub min_size_applied: bool,
-    /// プロトコルパネルで展開中のメッセージインデックス
-    pub protocol_expanded: HashSet<usize>,
+    /// プロトコルパネルで展開中のメッセージ ID
+    pub protocol_expanded: HashSet<u64>,
     /// 選択中のプロトコル定義インデックス
     pub selected_protocol_idx: Option<usize>,
     /// 非表示にするメッセージ定義ID（フィルタ）
@@ -200,8 +200,8 @@ pub struct UiState {
     pub dialog: Option<DialogKind>,
     /// モニタビューの選択状態
     pub monitor_selection: Selection,
-    /// プロトコルパネルの選択状態
-    pub protocol_selection: Selection,
+    /// プロトコルパネルの選択状態（match ID ベース）
+    pub protocol_selection: IdSelection,
     /// シーケンス図の状態
     pub sequence_diagram: ui::sequence_diagram::SequenceDiagramState,
 }
@@ -337,7 +337,7 @@ impl GlassApp {
                 show_protocol_search_help: false,
                 dialog: None,
                 monitor_selection: Selection::new(),
-                protocol_selection: Selection::new(),
+                protocol_selection: IdSelection::new(),
                 sequence_diagram: ui::sequence_diagram::SequenceDiagramState::new(),
             },
             lang,
@@ -542,8 +542,15 @@ impl GlassApp {
 
     /// プロトコル選択範囲をコピー
     pub fn copy_protocol_selection(&mut self, ui: &mut egui::Ui) {
-        if let Some((lo, hi)) = self.ui_state.protocol_selection.range() {
+        if let Some((lo_id, hi_id)) = self.ui_state.protocol_selection.range() {
             if let Some(proto) = &self.loaded_protocol {
+                let lo = self.protocol_state.position_by_id(lo_id)
+                    .unwrap_or(0);
+                let hi = self.protocol_state.position_by_id(hi_id)
+                    .unwrap_or_else(|| self.protocol_state.matches.len().saturating_sub(1));
+                if lo > hi || self.protocol_state.matches.is_empty() {
+                    return;
+                }
                 let indices: Vec<usize> = (lo..=hi).collect();
                 let text = ui::selection::format_protocol_copy(
                     &self.protocol_state.matches,

@@ -114,6 +114,12 @@ pub struct MessageDef {
     /// シーケンス図の宛先式（グローバルデフォルトをオーバーライド）
     #[serde(default)]
     pub sequence_destination: Option<String>,
+    /// 先頭バイト hint (HEX 2桁)。指定があるとマッチ高速化に使われる
+    #[serde(default)]
+    pub first_byte: Option<String>,
+    /// パース済み先頭バイト
+    #[serde(skip)]
+    pub parsed_first_byte: Option<u8>,
 }
 
 /// HEX RGB文字列をColor32にパース
@@ -149,9 +155,11 @@ pub fn load_protocol(path: &Path) -> Result<ProtocolFile, String> {
         .map_err(|e| format!("{}: {}", path.display(), e))?;
     let mut proto: ProtocolFile = toml::from_str(&content)
         .map_err(|e| format!("{}: {}", path.display(), e))?;
-    // 色をパースしてキャッシュ
+    // 色 / first_byte をパースしてキャッシュ
     for msg in &mut proto.messages {
         msg.parsed_color = msg.color.as_deref().and_then(parse_hex_color);
+        msg.parsed_first_byte = msg.first_byte.as_deref()
+            .and_then(|s| u8::from_str_radix(s, 16).ok());
     }
     Ok(proto)
 }

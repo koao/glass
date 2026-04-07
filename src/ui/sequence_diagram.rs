@@ -413,7 +413,13 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
 
         let proto = app.loaded_protocol.as_ref();
         let seq_config = proto.and_then(|p| p.protocol.sequence.as_ref());
-        let range = app.ui_state.protocol_selection.range();
+        // 選択 ID 範囲 → 現在のインデックス範囲に解決
+        let range = app.ui_state.protocol_selection.range().and_then(|(lo_id, hi_id)| {
+            let lo = app.protocol_state.position_by_id(lo_id)?;
+            let hi = app.protocol_state.position_by_id(hi_id)
+                .unwrap_or_else(|| app.protocol_state.matches.len().saturating_sub(1));
+            if lo > hi { None } else { Some((lo, hi)) }
+        });
 
         if let (Some(proto), Some(seq_config), Some(range)) = (proto, seq_config, range) {
             let rx = start_generate(&app.protocol_state.matches, proto, seq_config, range);

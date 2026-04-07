@@ -149,11 +149,12 @@ fn push_text_or_keyword(tokens: &mut Vec<Token>, text: String) {
 pub struct ProtocolSearchState {
     pub query: String,
     pub has_searched: bool,
-    /// 検索結果（matchesインデックス、昇順ソート済み）
-    results: Vec<usize>,
+    /// 検索結果（match ID、昇順ソート済み）
+    results: Vec<u64>,
     current: usize,
-    last_match_count: usize,
-    scroll_to_match: Option<usize>,
+    /// 次回 auto_refresh で走査を開始する match ID
+    next_scan_id: u64,
+    scroll_to_match: Option<u64>,
 }
 
 impl ProtocolSearchState {
@@ -163,7 +164,7 @@ impl ProtocolSearchState {
             has_searched: false,
             results: Vec::new(),
             current: 0,
-            last_match_count: 0,
+            next_scan_id: 0,
             scroll_to_match: None,
         }
     }
@@ -176,11 +177,11 @@ impl ProtocolSearchState {
         hidden_ids: &HashSet<String>,
     ) {
         self.has_searched = true;
-        self.last_match_count = matches.len();
         self.current = 0;
         self.results.clear();
         self.scroll_to_match = None;
-        self.run_search(matches, 0, proto, hidden_ids);
+        self.next_scan_id = 0;
+        self.run_search(matches, proto, hidden_ids);
         if !self.results.is_empty() {
             self.scroll_to_match = Some(self.results[self.current]);
         }
@@ -193,18 +194,18 @@ impl ProtocolSearchState {
         proto: Option<&ProtocolFile>,
         hidden_ids: &HashSet<String>,
     ) {
-        if self.has_searched && !self.query.is_empty() && matches.len() != self.last_match_count {
-            let scan_from = self.last_match_count;
-            self.last_match_count = matches.len();
-            self.run_search(matches, scan_from, proto, hidden_ids);
+        if self.has_searched && !self.query.is_empty() {
+            let last_id = matches.last().map(|m| m.id);
+            if last_id.map_or(false, |id| id >= self.next_scan_id) {
+                self.run_search(matches, proto, hidden_ids);
+            }
         }
     }
 
-    /// scan_from以降のmatchesを検索してresultsに追加
+    /// next_scan_id 以降の matches を検索して results に追加
     fn run_search(
         &mut self,
         matches: &[MatchedMessage],
-        scan_from: usize,
         proto: Option<&ProtocolFile>,
         hidden_ids: &HashSet<String>,
     ) {
@@ -220,8 +221,7 @@ impl ProtocolSearchState {
 
         let mut buf = String::new();
 
-        for i in scan_from..matches.len() {
-            let matched = &matches[i];
+        for matched in matches.iter().filter(|m| m.id >= self.next_scan_id) {
             if let Some(def_idx) = matched.message_def_idx {
                 if hidden_ids.contains(&proto.messages[def_idx].id) {
                     continue;
@@ -233,8 +233,11 @@ impl ProtocolSearchState {
             buf.make_ascii_lowercase();
 
             if expr.matches(&buf, &matched.frame.bytes) {
-                self.results.push(i);
+                self.results.push(matched.id);
             }
+        }
+        if let Some(last) = matches.last() {
+            self.next_scan_id = last.id + 1;
         }
     }
 
@@ -267,7 +270,7 @@ impl ProtocolSearchState {
         self.results.clear();
         self.current = 0;
         self.has_searched = false;
-        self.last_match_count = 0;
+        self.next_scan_id = 0;
         self.scroll_to_match = None;
     }
 
@@ -279,18 +282,18 @@ impl ProtocolSearchState {
         self.current
     }
 
-    pub fn is_hit(&self, match_idx: usize) -> bool {
-        self.results.binary_search(&match_idx).is_ok()
+    pub fn is_hit(&self, id: u64) -> bool {
+        self.results.binary_search(&id).is_ok()
     }
 
-    pub fn is_current_hit(&self, match_idx: usize) -> bool {
+    pub fn is_current_hit(&self, id: u64) -> bool {
         if self.results.is_empty() {
             return false;
         }
-        self.results[self.current] == match_idx
+        self.results[self.current] == id
     }
 
-    pub fn take_scroll_target(&mut self) -> Option<usize> {
+    pub fn take_scroll_target(&mut self) -> Option<u64> {
         self.scroll_to_match.take()
     }
 }
