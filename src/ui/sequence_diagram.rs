@@ -610,3 +610,53 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
         },
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn field(name: &str, offset: usize, size: usize) -> FieldDef {
+        FieldDef {
+            name: name.to_string(),
+            offset,
+            size,
+            description: None,
+            inline: false,
+        }
+    }
+
+    #[test]
+    fn literal_expression() {
+        let r = eval_expr("=Device1", &[], &[]);
+        assert_eq!(r.as_deref(), Some("Device1"));
+    }
+
+    #[test]
+    fn template_expression_extracts_field() {
+        let bytes = b"ABCD";
+        let fields = vec![field("ID", 0, 2)];
+        let r = eval_expr("DEV_{ID}", bytes, &fields);
+        assert_eq!(r.as_deref(), Some("DEV_AB"));
+    }
+
+    #[test]
+    fn plain_field_name_lookup() {
+        let bytes = b"XYZ";
+        let fields = vec![field("Tag", 0, 3)];
+        let r = eval_expr("Tag", bytes, &fields);
+        assert_eq!(r.as_deref(), Some("XYZ"));
+    }
+
+    #[test]
+    fn missing_field_returns_none() {
+        let r = eval_expr("{Missing}", b"AB", &[]);
+        assert_eq!(r, None);
+    }
+
+    #[test]
+    fn out_of_range_field_returns_none() {
+        let fields = vec![field("ID", 10, 2)];
+        let r = eval_expr("{ID}", b"AB", &fields);
+        assert_eq!(r, None);
+    }
+}

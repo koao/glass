@@ -362,3 +362,91 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     }
     haystack.windows(needle.len()).any(|w| w == needle)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn matches(query: &str, text: &str) -> bool {
+        let expr = parse_query(query).expect("non-empty query");
+        // 検索対象テキストは事前小文字化済み
+        expr.matches(&text.to_ascii_lowercase(), &[])
+    }
+
+    #[test]
+    fn implicit_and_space_separated() {
+        assert!(matches("foo bar", "this is foo and bar"));
+        assert!(!matches("foo bar", "only foo here"));
+    }
+
+    #[test]
+    fn explicit_and_keyword() {
+        assert!(matches("foo AND bar", "foo bar baz"));
+        assert!(!matches("foo AND bar", "foo only"));
+    }
+
+    #[test]
+    fn or_keyword() {
+        assert!(matches("foo OR bar", "only bar here"));
+        assert!(matches("foo OR bar", "only foo here"));
+        assert!(!matches("foo OR bar", "neither"));
+    }
+
+    #[test]
+    fn quoted_phrase_keeps_spaces() {
+        // クォート内のスペースは分割されず、AND/OR も無視される
+        assert!(matches("\"foo bar\"", "xx foo bar yy"));
+        assert!(!matches("\"foo bar\"", "foo xxx bar"));
+    }
+
+    #[test]
+    fn quoted_and_inside_is_literal() {
+        // クォート内 AND はキーワードでなくリテラル
+        assert!(matches("\"a AND b\"", "x a and b y"));
+    }
+
+    #[test]
+    fn case_insensitive_term() {
+        assert!(matches("HELLO", "hello world"));
+    }
+
+    #[test]
+    fn empty_query_returns_none() {
+        assert!(parse_query("   ").is_none());
+        assert!(parse_query("").is_none());
+    }
+
+    #[test]
+    fn or_has_lower_precedence_than_and() {
+        // "a AND b OR c" → (a AND b) OR c
+        let expr = parse_query("a AND b OR c").unwrap();
+        // c だけでヒット
+        assert!(expr.matches("c", &[]));
+        // a と b が両方あればヒット
+        assert!(expr.matches("a b", &[]));
+        // a だけではヒットしない
+        assert!(!expr.matches("a", &[]));
+    }
+
+    #[test]
+    fn hex_pattern_matches_frame_bytes() {
+        // $0D$0A はフレームのバイトパターンとしてマッチ
+        let expr = parse_query("$0D$0A").unwrap();
+        assert!(expr.matches("", &[0x01, 0x0D, 0x0A, 0x02]));
+        assert!(!expr.matches("", &[0x01, 0x02, 0x03]));
+    }
+
+    #[test]
+    fn parse_hex_pattern_requires_dollar() {
+        assert!(parse_hex_pattern("plain").is_none());
+        assert_eq!(parse_hex_pattern("$0D"), Some(vec![0x0D]));
+    }
+
+    #[test]
+    fn contains_bytes_basic() {
+        assert!(contains_bytes(&[1, 2, 3, 4], &[2, 3]));
+        assert!(!contains_bytes(&[1, 2, 3], &[2, 4]));
+        assert!(!contains_bytes(&[1], &[1, 2]));
+        assert!(!contains_bytes(&[1, 2], &[]));
+    }
+}

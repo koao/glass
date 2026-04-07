@@ -343,3 +343,401 @@ impl ProtocolState {
         self.first_id = 0;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::definition::ProtocolFile;
+    use std::time::Instant;
+
+    fn t() -> Instant {
+        Instant::now()
+    }
+
+    /// テスト用に TOML 文字列から ProtocolEngine を組み立てる
+    fn make_engine(toml_str: &str) -> ProtocolEngine {
+        let mut proto: ProtocolFile = toml::from_str(toml_str).expect("toml parse");
+        for msg in &mut proto.messages {
+            msg.parsed_first_byte = msg
+                .first_byte
+                .as_deref()
+                .and_then(|s| u8::from_str_radix(s, 16).ok());
+        }
+        ProtocolEngine::new(&proto)
+    }
+
+    /// 累積バッファに追記して sync_entries を呼ぶ
+    fn feed(
+        buf: &mut Vec<DataEntry>,
+        state: &mut ProtocolState,
+        engine: &ProtocolEngine,
+        bytes: &[u8],
+    ) {
+        for b in bytes {
+            buf.push(DataEntry::Byte(*b, t()));
+        }
+        state.sync_entries(buf, engine);
+    }
+
+    /// 一発で全バイトを供給するショートカット
+    fn feed_all(state: &mut ProtocolState, engine: &ProtocolEngine, bytes: &[u8]) {
+        let entries: Vec<DataEntry> = bytes.iter().map(|b| DataEntry::Byte(*b, t())).collect();
+        state.sync_entries(&entries, engine);
+    }
+
+    fn engine_fixed_len_4() -> ProtocolEngine {
+        // STX(02) で始まる 4 バイト固定長
+        make_engine(
+            r#"
+[protocol]
+title = "test"
+frame_idle_threshold_ms = 5.0
+[[protocol.frame_rules]]
+trigger = "02"
+length = 4
+"#,
+        )
+    }
+
+    fn engine_end_byte() -> ProtocolEngine {
+        // STX(02) ... ETX(03) + BCC 1 バイト
+        make_engine(
+            r#"
+[protocol]
+title = "test"
+frame_idle_threshold_ms = 5.0
+[[protocol.frame_rules]]
+trigger = "02"
+end = "03"
+end_extra = 1
+max_length = 16
+"#,
+        )
+    }
+
+    // ---------- Tier 1: ProtocolState ----------
+
+    #[test]
+    fn fixed_length_frame_finalizes_after_n_bytes() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let mut buf = Vec::new();
+        feed(&mut buf, &mut state, &engine, &[0x02, 0xAA, 0xBB]);
+        assert_eq!(state.matches.len(), 0, "途中ではマッチしない");
+        feed(&mut buf, &mut state, &engine, &[0xCC]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].frame.bytes, vec![0x02, 0xAA, 0xBB, 0xCC]);
+    }
+
+    #[test]
+    fn fixed_length_one_finalizes_immediately() {
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+[[protocol.frame_rules]]
+trigger = "05"
+length = 1
+"#,
+        );
+        let mut state = ProtocolState::new();
+        feed_all(&mut state, &engine, &[0x05]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].frame.bytes, vec![0x05]);
+    }
+
+    #[test]
+    fn end_byte_with_extra_bcc() {
+        let engine = engine_end_byte();
+        let mut state = ProtocolState::new();
+        let mut buf = Vec::new();
+        feed(&mut buf, &mut state, &engine, &[0x02, b'A', b'B', 0x03]);
+        assert_eq!(state.matches.len(), 0, "BCC 待ちで finalize されない");
+        feed(&mut buf, &mut state, &engine, &[0x99]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(
+            state.matches[0].frame.bytes,
+            vec![0x02, b'A', b'B', 0x03, 0x99]
+        );
+    }
+
+    #[test]
+    fn end_byte_max_length_safety() {
+        // end_byte が来ないまま max_length に達したら強制 finalize される
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+[[protocol.frame_rules]]
+trigger = "02"
+end = "03"
+max_length = 4
+"#,
+        );
+        let mut state = ProtocolState::new();
+        feed_all(&mut state, &engine, &[0x02, 0xAA, 0xBB, 0xCC]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].frame.bytes.len(), 4);
+    }
+
+    #[test]
+    fn end_extra_clipped_by_max_length() {
+        // end_extra=5 だが max_length 残量で 1 に切り詰められる
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+[[protocol.frame_rules]]
+trigger = "02"
+end = "03"
+end_extra = 5
+max_length = 5
+"#,
+        );
+        let mut state = ProtocolState::new();
+        // 02 AA 03 で end ヒット時、remaining=3、extra = min(5, 2) = 2
+        // よって追加 2 バイト取り込んでフレーム長 5 で確定する（max_length 上限）
+        feed_all(&mut state, &engine, &[0x02, 0xAA, 0x03, 0xBB, 0xCC]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(
+            state.matches[0].frame.bytes,
+            vec![0x02, 0xAA, 0x03, 0xBB, 0xCC]
+        );
+    }
+
+    #[test]
+    fn error_bytes_accumulate_until_trigger() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let mut buf = Vec::new();
+        feed(&mut buf, &mut state, &engine, &[0xFF, 0xEE, 0xDD]);
+        assert_eq!(
+            state.matches.len(),
+            0,
+            "trigger まではエラーも flush されない"
+        );
+        feed(&mut buf, &mut state, &engine, &[0x02, 0x01, 0x02, 0x03]);
+        assert_eq!(state.matches.len(), 2);
+        assert_eq!(state.matches[0].message_def_idx, None);
+        assert_eq!(state.matches[0].frame.bytes, vec![0xFF, 0xEE, 0xDD]);
+        assert_eq!(state.matches[1].frame.bytes, vec![0x02, 0x01, 0x02, 0x03]);
+    }
+
+    #[test]
+    fn error_bytes_flushed_on_idle() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let entries = vec![
+            DataEntry::Byte(0xFF, t()),
+            DataEntry::Byte(0xEE, t()),
+            DataEntry::Idle(10.0),
+        ];
+        state.sync_entries(&entries, &engine);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].message_def_idx, None);
+        assert_eq!(state.matches[0].frame.bytes, vec![0xFF, 0xEE]);
+    }
+
+    #[test]
+    fn idle_below_threshold_attaches_to_next_frame() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let entries = vec![
+            DataEntry::Idle(2.0),
+            DataEntry::Idle(1.5),
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x01, t()),
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x03, t()),
+        ];
+        state.sync_entries(&entries, &engine);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].preceding_idle_ms, Some(3.5));
+    }
+
+    #[test]
+    fn error_idle_does_not_leak_into_next_frame() {
+        // エラー蓄積開始時に IDLE が固定され、次フレームの preceding_idle_ms は None
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let entries = vec![
+            DataEntry::Idle(2.0),
+            DataEntry::Byte(0xFF, t()), // ここで error_idle_ms = 2.0 が固定
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x01, t()),
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x03, t()),
+        ];
+        state.sync_entries(&entries, &engine);
+        assert_eq!(state.matches.len(), 2);
+        assert_eq!(state.matches[0].preceding_idle_ms, Some(2.0));
+        assert_eq!(
+            state.matches[1].preceding_idle_ms, None,
+            "エラーから引き継いだ IDLE が次フレームに漏れてはならない"
+        );
+    }
+
+    #[test]
+    fn idle_above_threshold_resets_state() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        // 不完全な固定長フレーム途中で大きな IDLE が入り、強制 finalize される
+        let entries = vec![
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0xAA, t()),
+            DataEntry::Idle(100.0),
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x01, t()),
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x03, t()),
+        ];
+        state.sync_entries(&entries, &engine);
+        assert_eq!(state.matches.len(), 2);
+        assert_eq!(state.matches[0].frame.bytes, vec![0x02, 0xAA]);
+        assert_eq!(state.matches[1].frame.bytes, vec![0x02, 0x01, 0x02, 0x03]);
+    }
+
+    #[test]
+    fn sync_entries_is_idempotent_replay() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let entries: Vec<DataEntry> = [0x02u8, 0x01, 0x02, 0x03]
+            .iter()
+            .map(|b| DataEntry::Byte(*b, t()))
+            .collect();
+        state.sync_entries(&entries, &engine);
+        state.sync_entries(&entries, &engine);
+        assert_eq!(state.matches.len(), 1, "同じ入力を再評価しても重複しない");
+    }
+
+    #[test]
+    fn sync_entries_shrunk_resets_state() {
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let big: Vec<DataEntry> = (0..4).map(|_| DataEntry::Byte(0x02, t())).collect();
+        state.sync_entries(&big, &engine);
+        let small: Vec<DataEntry> = vec![DataEntry::Byte(0x02, t())];
+        state.sync_entries(&small, &engine);
+        // clear されてから 1 バイトだけ処理 → length=4 待ちで未確定
+        assert_eq!(state.matches.len(), 0);
+        assert_eq!(state.processed_count, 1);
+    }
+
+    #[test]
+    fn position_by_id_after_trim() {
+        let mut state = ProtocolState::new();
+        for _ in 0..(MAX_MATCHES + 1) {
+            let id = state.next_id();
+            state.push_match(MatchedMessage {
+                id,
+                message_def_idx: None,
+                frame: Frame { bytes: vec![] },
+                preceding_idle_ms: None,
+            });
+        }
+        let trim_count = (MAX_MATCHES as f64 * TRIM_RATIO) as usize;
+        assert_eq!(state.matches.len(), MAX_MATCHES + 1 - trim_count);
+        assert_eq!(state.first_id, trim_count as u64);
+        assert_eq!(state.position_by_id(trim_count as u64), Some(0));
+        assert_eq!(
+            state.position_by_id(MAX_MATCHES as u64),
+            Some(state.matches.len() - 1)
+        );
+        // trim 済みの古い ID は None
+        assert_eq!(state.position_by_id(0), None);
+    }
+
+    // ---------- Tier 1: ProtocolEngine::match_frame ----------
+
+    #[test]
+    fn match_frame_uses_first_byte_bucket() {
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+[[protocol.frame_rules]]
+trigger = "02"
+length = 3
+
+[[messages]]
+id = "M1"
+title = "Msg1"
+pattern = "^02AABB$"
+first_byte = "02"
+"#,
+        );
+        let mut state = ProtocolState::new();
+        feed_all(&mut state, &engine, &[0x02, 0xAA, 0xBB]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].message_def_idx, Some(0));
+    }
+
+    #[test]
+    fn match_frame_falls_back_when_no_first_byte() {
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+[[protocol.frame_rules]]
+trigger = "02"
+length = 3
+
+[[messages]]
+id = "M1"
+title = "Msg1"
+pattern = "^02....$"
+"#,
+        );
+        let mut state = ProtocolState::new();
+        feed_all(&mut state, &engine, &[0x02, 0xAA, 0xBB]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].message_def_idx, Some(0));
+    }
+
+    #[test]
+    fn match_frame_unmatched_returns_none() {
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+[[protocol.frame_rules]]
+trigger = "02"
+length = 3
+
+[[messages]]
+id = "M1"
+title = "Msg1"
+pattern = "^02AABB$"
+first_byte = "02"
+"#,
+        );
+        let mut state = ProtocolState::new();
+        feed_all(&mut state, &engine, &[0x02, 0x11, 0x22]);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].message_def_idx, None);
+    }
+
+    #[test]
+    fn engine_new_skips_invalid_regex() {
+        let engine = make_engine(
+            r#"
+[protocol]
+title = "t"
+
+[[messages]]
+id = "BAD"
+title = "Bad"
+pattern = "["
+first_byte = "02"
+
+[[messages]]
+id = "OK"
+title = "Ok"
+pattern = "^02$"
+first_byte = "02"
+"#,
+        );
+        let total: usize = engine.buckets.iter().map(|v| v.len()).sum();
+        assert_eq!(total + engine.fallback.len(), 1);
+    }
+}

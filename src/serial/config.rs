@@ -106,3 +106,47 @@ pub const BAUD_RATES: &[u32] = &[9600, 19200, 38400, 57600, 115200];
 
 /// データビット選択肢
 pub const DATA_BITS: &[u8] = &[7, 8];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cfg(baud: u32, data: u8, parity: ParitySetting, stop: StopBitsSetting) -> SerialConfig {
+        SerialConfig {
+            port_name: String::new(),
+            baud_rate: baud,
+            data_bits: data,
+            parity,
+            stop_bits: stop,
+        }
+    }
+
+    #[test]
+    fn parity_bit_count() {
+        assert_eq!(ParitySetting::None.bit_count(), 0);
+        assert_eq!(ParitySetting::Odd.bit_count(), 1);
+        assert_eq!(ParitySetting::Even.bit_count(), 1);
+    }
+
+    #[test]
+    fn stop_bits_bit_count() {
+        assert_eq!(StopBitsSetting::One.bit_count(), 1);
+        assert_eq!(StopBitsSetting::Two.bit_count(), 2);
+    }
+
+    #[test]
+    fn byte_duration_9600_8n1() {
+        // 1 + 8 + 0 + 1 = 10 bits / 9600 ≒ 1041.666μs
+        let d = cfg(9600, 8, ParitySetting::None, StopBitsSetting::One).byte_duration();
+        let expected = 10.0 / 9600.0;
+        assert!((d.as_secs_f64() - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn byte_duration_115200_7e2() {
+        // 1 + 7 + 1 + 2 = 11 bits
+        let d = cfg(115200, 7, ParitySetting::Even, StopBitsSetting::Two).byte_duration();
+        let expected = 11.0 / 115200.0;
+        assert!((d.as_secs_f64() - expected).abs() < 1e-9);
+    }
+}

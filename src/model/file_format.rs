@@ -73,3 +73,82 @@ fn unix_timestamp_string() -> String {
         .as_secs();
     format!("{}", secs)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn roundtrip_preserves_byte_values_and_idle() {
+        let t0 = Instant::now();
+        let entries = vec![
+            DataEntry::Byte(0x12, t0),
+            DataEntry::Byte(0x34, t0 + Duration::from_micros(50)),
+            DataEntry::Idle(7.5),
+            DataEntry::Byte(0xFF, t0 + Duration::from_micros(120)),
+        ];
+        let file = GlassFile::from_entries(&entries);
+        let restored = file.to_entries();
+        assert_eq!(restored.len(), 4);
+
+        let extract = |e: &DataEntry| -> (Option<u8>, Option<f64>) {
+            match e {
+                DataEntry::Byte(b, _) => (Some(*b), None),
+                DataEntry::Idle(ms) => (None, Some(*ms)),
+                DataEntry::Error => (None, None),
+            }
+        };
+        assert_eq!(extract(&restored[0]), (Some(0x12), None));
+        assert_eq!(extract(&restored[1]), (Some(0x34), None));
+        assert_eq!(extract(&restored[2]), (None, Some(7.5)));
+        assert_eq!(extract(&restored[3]), (Some(0xFF), None));
+    }
+
+    #[test]
+    fn errors_are_excluded_from_save() {
+        let t0 = Instant::now();
+        let entries = vec![
+            DataEntry::Byte(0xAA, t0),
+            DataEntry::Error,
+            DataEntry::Byte(0xBB, t0 + Duration::from_micros(10)),
+        ];
+        let file = GlassFile::from_entries(&entries);
+        assert_eq!(file.entries.len(), 2);
+    }
+
+    #[test]
+    fn relative_time_starts_at_zero() {
+        let t0 = Instant::now() + Duration::from_secs(100);
+        let entries = vec![
+            DataEntry::Byte(0x01, t0),
+            DataEntry::Byte(0x02, t0 + Duration::from_micros(250)),
+        ];
+        let file = GlassFile::from_entries(&entries);
+        match (&file.entries[0], &file.entries[1]) {
+            (SavedEntry::Byte(_, a), SavedEntry::Byte(_, b)) => {
+                assert_eq!(*a, 0);
+                assert_eq!(*b, 250);
+            }
+            _ => panic!("expected Byte entries"),
+        }
+    }
+
+    #[test]
+    fn empty_buffer_roundtrip() {
+        let file = GlassFile::from_entries(&[]);
+        assert!(file.entries.is_empty());
+        assert!(file.to_entries().is_empty());
+    }
+
+    #[test]
+    fn json_serde_roundtrip() {
+        let t0 = Instant::now();
+        let entries = vec![DataEntry::Byte(0x42, t0), DataEntry::Idle(1.5)];
+        let file = GlassFile::from_entries(&entries);
+        let json = serde_json::to_string(&file).unwrap();
+        let parsed: GlassFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.entries.len(), 2);
+        assert_eq!(parsed.version, 1);
+    }
+}

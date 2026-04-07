@@ -219,3 +219,81 @@ pub fn format_protocol_copy(
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cells(bytes: &[u8]) -> Vec<DisplayCell> {
+        bytes.iter().map(|b| DisplayCell::Data(*b)).collect()
+    }
+
+    #[test]
+    fn selection_range_normalizes_backward() {
+        let mut s = Selection::new();
+        s.start(10);
+        s.extend(3);
+        assert_eq!(s.range(), Some((3, 10)));
+        assert!(s.contains(3));
+        assert!(s.contains(7));
+        assert!(s.contains(10));
+        assert!(!s.contains(11));
+    }
+
+    #[test]
+    fn selection_anchor_only() {
+        let mut s = Selection::new();
+        s.start(5);
+        assert_eq!(s.range(), Some((5, 5)));
+        s.clear();
+        assert_eq!(s.range(), None);
+    }
+
+    #[test]
+    fn id_selection_normalizes() {
+        let mut s = IdSelection::new();
+        s.start(100);
+        s.extend(50);
+        assert_eq!(s.range(), Some((50, 100)));
+        assert!(s.contains(75));
+        assert!(!s.contains(49));
+    }
+
+    #[test]
+    fn format_monitor_mixed_uses_dollar_for_non_printable() {
+        // 'A' (0x41) はそのまま、0x0D は $0D、0x0A は $0A
+        let c = cells(&[0x41, 0x0D, 0x0A, b'B']);
+        let s = format_monitor_mixed(&c, (0, 3));
+        assert_eq!(s, "A$0D$0AB");
+    }
+
+    #[test]
+    fn format_monitor_hex_emits_all_bytes_as_dollar() {
+        let c = cells(&[0xFF, 0x00, 0x42]);
+        let s = format_monitor_hex(&c, (0, 2));
+        assert_eq!(s, "$FF$00$42");
+    }
+
+    #[test]
+    fn format_monitor_binary_strips_idle_chars() {
+        let mut c = cells(b"AB");
+        c.insert(1, DisplayCell::IdleChar('0'));
+        c.insert(2, DisplayCell::IdleChar('1'));
+        let s = format_monitor_binary(&c, (0, c.len() - 1));
+        assert_eq!(s, "AB");
+    }
+
+    #[test]
+    fn format_monitor_mixed_inserts_idle_marker() {
+        let c = vec![
+            DisplayCell::Data(b'A'),
+            DisplayCell::IdleChar('0'),
+            DisplayCell::IdleChar('0'),
+            DisplayCell::IdleChar('0'),
+            DisplayCell::IdleChar('1'),
+            DisplayCell::Data(b'B'),
+        ];
+        let s = format_monitor_mixed(&c, (0, 5));
+        assert_eq!(s, "A[IDLE]B");
+    }
+}

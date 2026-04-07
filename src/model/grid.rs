@@ -81,3 +81,73 @@ impl DisplayBuffer {
         self.cells.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    fn idle_chars(buf: &DisplayBuffer) -> String {
+        buf.cells()
+            .iter()
+            .filter_map(|c| match c {
+                DisplayCell::IdleChar(ch) => Some(*ch),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn byte_becomes_single_data_cell() {
+        let mut buf = DisplayBuffer::new();
+        buf.sync_entries(&[DataEntry::Byte(0xAB, Instant::now())], 100.0);
+        assert_eq!(buf.len(), 1);
+        assert!(matches!(buf.cells()[0], DisplayCell::Data(0xAB)));
+    }
+
+    #[test]
+    fn idle_count_zero_padded_4digits() {
+        let mut buf = DisplayBuffer::new();
+        // 350ms / 100ms = 3
+        buf.sync_entries(&[DataEntry::Idle(350.0)], 100.0);
+        assert_eq!(buf.len(), 4);
+        assert_eq!(idle_chars(&buf), "0003");
+    }
+
+    #[test]
+    fn idle_count_clamped_to_9999() {
+        let mut buf = DisplayBuffer::new();
+        buf.sync_entries(&[DataEntry::Idle(1.0e9)], 1.0);
+        assert_eq!(idle_chars(&buf), "9999");
+    }
+
+    #[test]
+    fn incremental_sync_only_processes_new() {
+        let mut buf = DisplayBuffer::new();
+        let t = Instant::now();
+        let entries = vec![DataEntry::Byte(0x01, t), DataEntry::Byte(0x02, t)];
+        buf.sync_entries(&entries, 100.0);
+        let mut entries2 = entries.clone();
+        entries2.push(DataEntry::Byte(0x03, t));
+        buf.sync_entries(&entries2, 100.0);
+        assert_eq!(buf.len(), 3);
+        assert!(matches!(buf.cells()[2], DisplayCell::Data(0x03)));
+    }
+
+    #[test]
+    fn shrunk_input_resets_buffer() {
+        let mut buf = DisplayBuffer::new();
+        let t = Instant::now();
+        buf.sync_entries(&[DataEntry::Byte(0x01, t), DataEntry::Byte(0x02, t)], 100.0);
+        buf.sync_entries(&[DataEntry::Byte(0xFF, t)], 100.0);
+        assert_eq!(buf.len(), 1);
+        assert!(matches!(buf.cells()[0], DisplayCell::Data(0xFF)));
+    }
+
+    #[test]
+    fn error_entry_produces_no_cell() {
+        let mut buf = DisplayBuffer::new();
+        buf.sync_entries(&[DataEntry::Error], 100.0);
+        assert_eq!(buf.len(), 0);
+    }
+}

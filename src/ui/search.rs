@@ -213,3 +213,53 @@ fn parse_mixed_pattern(input: &str) -> Vec<u8> {
     }
     bytes
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_mixed_pattern;
+
+    #[test]
+    fn pure_ascii() {
+        assert_eq!(
+            parse_mixed_pattern("Hello"),
+            vec![0x48, 0x65, 0x6C, 0x6C, 0x6F]
+        );
+    }
+
+    #[test]
+    fn pure_hex() {
+        assert_eq!(parse_mixed_pattern("$0D$0A"), vec![0x0D, 0x0A]);
+    }
+
+    #[test]
+    fn mixed_ascii_hex() {
+        assert_eq!(
+            parse_mixed_pattern("OK$0D$0A"),
+            vec![0x4F, 0x4B, 0x0D, 0x0A]
+        );
+    }
+
+    #[test]
+    fn hex_case_insensitive() {
+        assert_eq!(parse_mixed_pattern("$0d$Ff"), vec![0x0D, 0xFF]);
+    }
+
+    #[test]
+    fn invalid_hex_falls_back_to_literal() {
+        // $XX は非16進なのでリテラル '$', 'X', 'X' として扱われる
+        let r = parse_mixed_pattern("$XX");
+        assert_eq!(r, vec![b'$', b'X', b'X']);
+    }
+
+    #[test]
+    fn short_hex_at_end_is_literal() {
+        // 末尾の $0 は桁不足なのでリテラル
+        let r = parse_mixed_pattern("A$0");
+        assert_eq!(r, vec![b'A', b'$', b'0']);
+    }
+
+    #[test]
+    fn empty_input() {
+        assert!(parse_mixed_pattern("").is_empty());
+    }
+}
