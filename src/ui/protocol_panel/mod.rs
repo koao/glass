@@ -15,6 +15,7 @@ use egui::{Align, Align2, ScrollArea, Ui, Vec2};
 use egui_phosphor::regular;
 
 use crate::app::{GlassApp, MonitorState, ProtocolViewMode};
+use crate::protocol::checksum::{ChecksumStatus, format_value};
 use crate::protocol::definition;
 use crate::protocol::engine::ProtocolEngine;
 use crate::ui::theme;
@@ -24,6 +25,34 @@ use wrap_view::draw_wrap_view;
 
 /// 行の高さ
 pub(super) const ROW_HEIGHT: f32 = 28.0;
+
+/// CRC NG バッジの色
+pub(super) const CHECKSUM_NG_COLOR: egui::Color32 = egui::Color32::from_rgb(220, 110, 110);
+
+/// CRC NG バッジを描画して、進めるべき幅（バッジ幅 + 余白）を返す。
+/// matched.checksum が Invalid のときだけ描画し、それ以外は 0 を返す。
+pub(super) fn paint_checksum_ng_badge(
+    painter: &egui::Painter,
+    font: egui::FontId,
+    x: f32,
+    center_y: f32,
+    status: Option<crate::protocol::checksum::ChecksumStatus>,
+) -> f32 {
+    if !matches!(
+        status,
+        Some(crate::protocol::checksum::ChecksumStatus::Invalid { .. })
+    ) {
+        return 0.0;
+    }
+    let g = painter.layout_no_wrap(regular::X_CIRCLE.to_string(), font, CHECKSUM_NG_COLOR);
+    let w = g.rect.width();
+    painter.galley(
+        egui::pos2(x, center_y - g.rect.height() / 2.0),
+        g,
+        CHECKSUM_NG_COLOR,
+    );
+    w + 8.0
+}
 
 /// フォントID
 pub(super) const FONT: fn() -> egui::FontId = || egui::FontId::proportional(15.0);
@@ -544,6 +573,53 @@ fn draw_expanded_detail(ui: &mut Ui, app: &GlassApp, match_idx: usize) {
                 });
             ui.add_space(4.0);
         }
+    }
+
+    // チェックサム検証結果
+    if let Some(status) = matched.checksum
+        && let Some(spec) = matched
+            .frame
+            .bytes
+            .first()
+            .and_then(|first| app.protocol_engine.as_ref()?.find_rule(*first))
+            .and_then(|rule| rule.checksum.as_ref())
+    {
+        let algo_label = spec.algorithm.label();
+        let size = spec.effective_size();
+
+        match status {
+            ChecksumStatus::Valid { value } => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(120, 200, 140),
+                    format!(
+                        "{}: {} {} {} ({})",
+                        app.t.protocol_checksum,
+                        algo_label,
+                        regular::CHECK_CIRCLE,
+                        app.t.protocol_checksum_ok,
+                        format_value(value, size)
+                    ),
+                );
+            }
+            ChecksumStatus::Invalid { expected, actual } => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(220, 110, 110),
+                    format!(
+                        "{}: {} {} {} ({} {} / {} {})",
+                        app.t.protocol_checksum,
+                        algo_label,
+                        regular::X_CIRCLE,
+                        app.t.protocol_checksum_ng,
+                        app.t.protocol_checksum_expected,
+                        format_value(expected, size),
+                        app.t.protocol_checksum_actual,
+                        format_value(actual, size),
+                    ),
+                );
+            }
+            ChecksumStatus::NotApplicable => {}
+        }
+        ui.add_space(2.0);
     }
 
     ui.colored_label(theme::TEXT_MUTED, format!("{}:", app.t.protocol_raw));

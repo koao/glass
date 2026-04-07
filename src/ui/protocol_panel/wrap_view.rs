@@ -204,6 +204,13 @@ fn paint_inline_message(
                 title_color,
             );
             cur_x += w + 8.0;
+            cur_x += super::paint_checksum_ng_badge(
+                painter,
+                font.clone(),
+                cur_x,
+                center_y,
+                matched.checksum,
+            );
             for field in msg_def.fields.iter().filter(|f| f.inline) {
                 let ascii = extract_ascii(&matched.frame.bytes, field.offset, field.size);
                 let text = format!("{}:{}", field.name, ascii);

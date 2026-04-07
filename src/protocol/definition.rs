@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use super::checksum::ChecksumSpec;
+
 /// プロトコル定義ファイル全体
 #[derive(Clone, Debug, Deserialize)]
 pub struct ProtocolFile {
@@ -61,6 +63,9 @@ pub struct FrameRule {
     /// 取得バイト数上限（無限ループ防止）
     #[serde(default = "default_max_length")]
     pub max_length: usize,
+    /// チェックサム / CRC 検証仕様（省略可）
+    #[serde(default)]
+    pub checksum: Option<ChecksumSpec>,
 }
 
 fn default_max_length() -> usize {
@@ -75,6 +80,7 @@ pub struct ParsedFrameRule {
     pub end_byte: Option<u8>,
     pub end_extra: usize,
     pub max_length: usize,
+    pub checksum: Option<ChecksumSpec>,
 }
 
 impl FrameRule {
@@ -91,6 +97,7 @@ impl FrameRule {
             end_byte,
             end_extra: self.end_extra,
             max_length: self.max_length,
+            checksum: self.checksum.clone(),
         })
     }
 }

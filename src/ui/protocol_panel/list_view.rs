@@ -222,6 +222,14 @@ pub(super) fn draw_match_list(
                         );
                         cur_x += w + 8.0;
 
+                        cur_x += super::paint_checksum_ng_badge(
+                            &painter,
+                            font.clone(),
+                            cur_x,
+                            center_y,
+                            matched.checksum,
+                        );
+
                         for field in msg_def.fields.iter().filter(|f| f.inline) {
                             let name = &field.name;
                             let ascii =

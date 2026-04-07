@@ -2,6 +2,7 @@ use std::fmt::Write;
 
 use regex::Regex;
 
+use super::checksum::{self, ChecksumStatus};
 use super::definition::{ParsedFrameRule, ProtocolFile};
 use crate::model::entry::DataEntry;
 
@@ -21,6 +22,8 @@ pub struct MatchedMessage {
     pub frame: Frame,
     /// 直前のフレームとの間のIDLE時間(ms)
     pub preceding_idle_ms: Option<f64>,
+    /// チェックサム検証結果（frame_rule に checksum 指定がある場合のみ Some）
+    pub checksum: Option<ChecksumStatus>,
 }
 
 /// フレーム構築中の状態
@@ -101,7 +104,7 @@ impl ProtocolEngine {
         None
     }
 
-    fn find_rule(&self, byte: u8) -> Option<&ParsedFrameRule> {
+    pub fn find_rule(&self, byte: u8) -> Option<&ParsedFrameRule> {
         self.frame_rules.iter().find(|r| r.trigger == byte)
     }
 
@@ -290,11 +293,18 @@ impl ProtocolState {
         let msg_idx = engine.match_frame(&bytes);
         let id = self.next_id();
         let preceding_idle_ms = self.pending_idle_ms.take();
+        // checksum 検証（frame_rule に指定がある場合のみ）
+        let checksum = bytes.first().and_then(|first| {
+            let rule = engine.find_rule(*first)?;
+            let spec = rule.checksum.as_ref()?;
+            Some(checksum::verify(spec, &bytes, rule.end_byte))
+        });
         self.push_match(MatchedMessage {
             id,
             message_def_idx: msg_idx,
             frame: Frame { bytes },
             preceding_idle_ms,
+            checksum,
         });
     }
 
@@ -310,6 +320,7 @@ impl ProtocolState {
             message_def_idx: None,
             frame: Frame { bytes },
             preceding_idle_ms,
+            checksum: None,
         });
     }
 
@@ -633,6 +644,7 @@ max_length = 5
                 message_def_idx: None,
                 frame: Frame { bytes: vec![] },
                 preceding_idle_ms: None,
+                checksum: None,
             });
         }
         let trim_count = (MAX_MATCHES as f64 * TRIM_RATIO) as usize;
