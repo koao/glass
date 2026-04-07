@@ -6,6 +6,7 @@ mod model;
 mod protocol;
 mod serial;
 mod settings;
+mod trigger;
 mod ui;
 
 fn load_icon() -> eframe::egui::IconData {

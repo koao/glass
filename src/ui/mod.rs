@@ -12,3 +12,4 @@ pub mod sequence_diagram;
 pub mod settings_window;
 pub mod status_bar;
 pub mod theme;
+pub mod trigger_window;

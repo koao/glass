@@ -54,6 +54,34 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 
         ui.separator();
 
+        // トリガ ON/OFF トグル
+        let trigger_label = format!("{} {}", regular::LIGHTNING, app.t.trigger);
+        let has_pattern = !app.trigger.pattern.is_empty();
+        let toggle = ui
+            .add_enabled(
+                has_pattern,
+                egui::Button::selectable(app.trigger.armed, trigger_label),
+            )
+            .on_disabled_hover_text(app.t.trigger_no_pattern);
+        if toggle.clicked() {
+            if app.trigger.armed {
+                app.trigger.disarm();
+            } else {
+                let len = app.buffer.entries().len();
+                app.trigger.arm_from(len);
+            }
+        }
+        // トリガ設定アイコン
+        if ui
+            .button(regular::GEAR_FINE.to_string())
+            .on_hover_text(app.t.trigger_settings)
+            .clicked()
+        {
+            app.ui_state.show_trigger_window = !app.ui_state.show_trigger_window;
+        }
+
+        ui.separator();
+
         // 表示タブ切替
         ui.selectable_value(&mut app.active_tab, ViewTab::Monitor, app.t.tab_monitor);
         ui.selectable_value(&mut app.active_tab, ViewTab::Protocol, app.t.tab_protocol);

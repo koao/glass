@@ -94,6 +94,12 @@ pub struct AppSettings {
     /// モニタービュー文字色
     #[serde(default)]
     pub monitor_colors: MonitorColors,
+    /// トリガ検出パターン（検索バーと同じ混在記法）
+    #[serde(default)]
+    pub trigger_pattern: String,
+    /// トリガマッチ後の停止遅延 (ms)
+    #[serde(default)]
+    pub trigger_post_delay_ms: u64,
 }
 
 impl Default for AppSettings {
@@ -114,6 +120,8 @@ impl Default for AppSettings {
             protocol_view_mode: String::new(),
             selected_protocol: String::new(),
             monitor_colors: MonitorColors::default(),
+            trigger_pattern: String::new(),
+            trigger_post_delay_ms: 0,
         }
     }
 }

@@ -20,6 +20,7 @@ use crate::serial::config::SerialConfig;
 use crate::serial::worker;
 use crate::settings::AppSettings;
 use crate::settings::MonitorColors;
+use crate::trigger::ByteTrigger;
 use crate::ui;
 use crate::ui::protocol_search::ProtocolSearchState;
 use crate::ui::search::SearchState;
@@ -185,6 +186,8 @@ pub struct UiState {
     pub protocol_show_idle: bool,
     /// フィルタ設定ウィンドウ表示フラグ
     pub show_protocol_filter: bool,
+    /// トリガ設定ウィンドウ表示フラグ
+    pub show_trigger_window: bool,
     /// プロトコルパネル表示モード
     pub protocol_view_mode: ProtocolViewMode,
     /// ラップ表示の状態
@@ -235,6 +238,8 @@ pub struct GlassApp {
     pub protocol_search: ProtocolSearchState,
     /// モニタービュー文字色設定
     pub monitor_colors: MonitorColors,
+    /// バイト列パターントリガ
+    pub trigger: ByteTrigger,
 }
 
 impl GlassApp {
@@ -324,6 +329,7 @@ impl GlassApp {
                 protocol_hidden_ids: HashSet::new(),
                 protocol_show_idle: true,
                 show_protocol_filter: false,
+                show_trigger_window: false,
                 protocol_view_mode: if settings.protocol_view_mode == "wrap" {
                     ProtocolViewMode::Wrap
                 } else {
@@ -346,6 +352,14 @@ impl GlassApp {
             protocol_files,
             protocol_search: ProtocolSearchState::new(),
             monitor_colors: settings.monitor_colors,
+            trigger: {
+                let mut t = ByteTrigger::new();
+                if !settings.trigger_pattern.is_empty() {
+                    t.set_pattern_text(settings.trigger_pattern);
+                }
+                t.post_match_delay_ms = settings.trigger_post_delay_ms;
+                t
+            },
         };
         app.refresh_ports();
         app
@@ -447,13 +461,7 @@ impl GlassApp {
     }
 
     pub fn resume(&mut self) {
-        // 一時停止中のデータを表示バッファに同期
-        self.display_buffer
-            .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
-        if let Some(engine) = &self.protocol_engine {
-            self.protocol_state
-                .sync_entries(self.buffer.entries(), engine);
-        }
+        self.sync_views_to_buffer();
         self.state = MonitorState::Running;
     }
 
@@ -466,13 +474,21 @@ impl GlassApp {
         }
         self.receiver = None;
         self.state = MonitorState::Stopped;
+        self.trigger.disarm();
         // 停止時にバッファを同期（スクロール表示用）
+        self.sync_views_to_buffer();
+        if let Some(engine) = &self.protocol_engine {
+            self.protocol_state.flush(engine);
+        }
+    }
+
+    /// display_buffer と protocol_state を現在の生バッファに同期
+    fn sync_views_to_buffer(&mut self) {
         self.display_buffer
             .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
         if let Some(engine) = &self.protocol_engine {
             self.protocol_state
                 .sync_entries(self.buffer.entries(), engine);
-            self.protocol_state.flush(engine);
         }
     }
 
@@ -499,6 +515,8 @@ impl GlassApp {
         self.ui_state.protocol_selection.clear();
         self.last_byte_time = None;
         self.search = SearchState::new();
+        self.trigger.disarm();
+        self.trigger.reset_scan_cursor(0);
     }
 
     /// 検索バーの表示/非表示を切り替え（アクティブタブに応じて）
@@ -665,6 +683,8 @@ impl GlassApp {
                 })
                 .unwrap_or_default(),
             monitor_colors: self.monitor_colors.clone(),
+            trigger_pattern: self.trigger.pattern_text.clone(),
+            trigger_post_delay_ms: self.trigger.post_match_delay_ms,
         };
         settings.save();
     }
@@ -701,6 +721,15 @@ impl eframe::App for GlassApp {
 
         // チャネルからデータ受信
         self.drain_channel();
+
+        // トリガ評価（Running 中のみ）。発火したら発火時点までの受信を表示に反映してから pause
+        if self.state == MonitorState::Running
+            && self.trigger.armed
+            && self.trigger.scan(self.buffer.entries())
+        {
+            self.sync_views_to_buffer();
+            self.pause();
+        }
 
         // プロトコルエンジンの増分同期（一時停止中はスキップ）
         if self.state != MonitorState::Paused
@@ -798,6 +827,7 @@ impl eframe::App for GlassApp {
 
         // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
+        ui::trigger_window::draw(ui.ctx(), self);
         ui::search_bar::draw_help(ui, self);
         ui::sequence_diagram::draw(ui.ctx(), self);
         ui::dialog::draw(ui.ctx(), self);

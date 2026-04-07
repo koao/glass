@@ -149,6 +149,16 @@ pub struct Texts {
     pub err_screenshot: &'static str,
     pub err_dialog_title: &'static str,
     pub ok: &'static str,
+
+    // -- trigger --
+    pub trigger: &'static str,
+    pub trigger_no_pattern: &'static str,
+    pub trigger_settings: &'static str,
+    pub trigger_pattern_label: &'static str,
+    pub trigger_pattern_hint: &'static str,
+    pub trigger_post_delay_label: &'static str,
+    pub trigger_post_delay_unit: &'static str,
+    pub trigger_oneshot_note: &'static str,
 }
 
 const JA: Texts = Texts {
@@ -271,6 +281,16 @@ const JA: Texts = Texts {
     err_screenshot: "スクリーンショット保存失敗",
     err_dialog_title: "エラー",
     ok: "OK",
+
+    // trigger
+    trigger: "トリガ",
+    trigger_no_pattern: "パターン未設定",
+    trigger_settings: "トリガ設定",
+    trigger_pattern_label: "検出パターン:",
+    trigger_pattern_hint: "例: OK$0D$0A",
+    trigger_post_delay_label: "マッチ後の停止遅延:",
+    trigger_post_delay_unit: "ms",
+    trigger_oneshot_note: "発火後は自動で OFF になります\n（ワンショット）",
 };
 
 const EN: Texts = Texts {
@@ -393,4 +413,14 @@ const EN: Texts = Texts {
     err_screenshot: "Failed to save screenshot",
     err_dialog_title: "Error",
     ok: "OK",
+
+    // trigger
+    trigger: "Trigger",
+    trigger_no_pattern: "Pattern not set",
+    trigger_settings: "Trigger Settings",
+    trigger_pattern_label: "Detect pattern:",
+    trigger_pattern_hint: "e.g. OK$0D$0A",
+    trigger_post_delay_label: "Stop delay after match:",
+    trigger_post_delay_unit: "ms",
+    trigger_oneshot_note: "Disarms automatically after firing\n(one-shot)",
 };

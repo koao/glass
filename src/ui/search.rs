@@ -191,7 +191,7 @@ impl SearchState {
 /// 混在パターンをパース
 /// `$XX` → 16進数バイト、それ以外 → ASCIIバイト
 /// 例: "OK$0D$0A" → [0x4F, 0x4B, 0x0D, 0x0A]
-fn parse_mixed_pattern(input: &str) -> Vec<u8> {
+pub fn parse_mixed_pattern(input: &str) -> Vec<u8> {
     let mut bytes = Vec::new();
     let chars: Vec<char> = input.chars().collect();
     let mut i = 0;
