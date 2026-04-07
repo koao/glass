@@ -95,7 +95,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                     ui.colored_label(theme::TEXT_MUTED, app.t.protocol_no_match);
                 });
             } else {
-                let is_running = app.state == MonitorState::Running;
+                let is_stopped = app.state == MonitorState::Stopped;
                 let scroll_to_row =
                     app.protocol_search
                         .take_scroll_target()
@@ -105,7 +105,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                                 |r| matches!(r, RowEntry::Message(idx, _) if *idx == target_idx),
                             )
                         });
-                if !is_running {
+                if is_stopped {
                     ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .scroll_source(egui::scroll_area::ScrollSource {
