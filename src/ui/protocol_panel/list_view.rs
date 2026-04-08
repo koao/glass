@@ -155,6 +155,17 @@ pub(super) fn draw_match_list(
     let font = FONT();
     let mono_font = MONO_FONT();
 
+    // スクロール先の行が現在の可視範囲外にある場合でも発火するよう、
+    // 可視行カリングの前に scroll_to_rect を呼ぶ
+    if let Some(target_row) = scroll_to_row {
+        let y_offset = (target_row - row_offset) as f32 * row_h;
+        let target_rect = Rect::from_min_size(
+            egui::pos2(rect.min.x, rect.min.y + y_offset),
+            Vec2::new(available_width, ROW_HEIGHT),
+        );
+        ui.scroll_to_rect(target_rect, Some(Align::Center));
+    }
+
     for row_idx in draw_f..draw_l {
         let y_offset = (row_idx - row_offset) as f32 * row_h;
         let row_rect = Rect::from_min_size(
@@ -198,10 +209,6 @@ pub(super) fn draw_match_list(
                     theme::PROTOCOL_ROW_ODD
                 };
                 painter.rect_filled(row_rect, 0.0, bg);
-
-                if scroll_to_row == Some(row_idx) {
-                    ui.scroll_to_rect(row_rect, Some(Align::Center));
-                }
 
                 let text_x = row_rect.min.x + 8.0;
                 let mut cur_x = text_x;

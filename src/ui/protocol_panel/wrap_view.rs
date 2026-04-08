@@ -644,6 +644,17 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                 });
             }
 
+            // スクロール先の行が現在の可視範囲外にある場合でも発火するよう、
+            // 可視行カリングの前に scroll_to_rect を呼ぶ
+            if let Some(row) = scroll_to_row {
+                let y_top = rect.min.y + row as f32 * row_h;
+                let target = Rect::from_min_size(
+                    egui::pos2(rect.min.x, y_top),
+                    Vec2::new(available_width, row_h),
+                );
+                ui.scroll_to_rect(target, Some(Align::Center));
+            }
+
             let clip = ui.clip_rect();
             let visible_top = (clip.min.y - rect.min.y).max(0.0);
             let visible_bottom = (clip.max.y - rect.min.y).max(0.0);
@@ -664,10 +675,6 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                     theme::PROTOCOL_ROW_ODD
                 };
                 painter.rect_filled(row_rect, 0.0, bg);
-
-                if scroll_to_row == Some(row) {
-                    ui.scroll_to_rect(row_rect, Some(Align::Center));
-                }
 
                 paint_wrap_slots(&painter, app, line, rect.min.x, &row_rect, row_h);
             }
