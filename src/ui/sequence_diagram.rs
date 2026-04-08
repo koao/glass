@@ -28,7 +28,10 @@ pub struct SequenceDiagramState {
     png_rgba: Vec<u8>,
     png_size: [u32; 2],
     texture: Option<TextureHandle>,
+    /// プレビュー用テクスチャの実サイズ (等倍。GPU上限超過時は切り出し後のサイズ)
     image_size: [usize; 2],
+    /// 元画像の等倍サイズ (省略表示用)
+    full_size: [usize; 2],
     result_rx: Option<Receiver<Result<GenerateResult, String>>>,
 }
 
@@ -43,6 +46,7 @@ impl SequenceDiagramState {
             png_size: [0, 0],
             texture: None,
             image_size: [0, 0],
+            full_size: [0, 0],
             result_rx: None,
         }
     }
@@ -380,6 +384,15 @@ fn rasterize_svg(svg_data: &str) -> Result<ColorImage, String> {
     if w == 0 || h == 0 {
         return Err("SVG size is zero".to_string());
     }
+    // 異常に大きな画像は OOM やレンダラ崩壊の原因になるため事前に弾く
+    // (32768px は一般的な GPU max_texture_side の最大値の目安)
+    const MAX_DIM: u32 = 32768;
+    if w > MAX_DIM || h > MAX_DIM {
+        return Err(format!(
+            "シーケンス図が大きすぎます ({}x{}px)。範囲を狭めて再生成してください",
+            w, h
+        ));
+    }
     let mut pixmap =
         resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| "Failed to create pixmap".to_string())?;
     let bg = theme::GRID_BG;
@@ -506,9 +519,9 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
         let done = if let Some(ref rx) = app.ui_state.sequence_diagram.result_rx {
             match rx.try_recv() {
                 Ok(Ok(result)) => {
-                    app.ui_state.sequence_diagram.image_size = result.image.size;
-                    // PNG保存用にRGBAデータを保持
                     let [w, h] = result.image.size;
+                    app.ui_state.sequence_diagram.full_size = [w, h];
+                    // PNG保存用に等倍RGBAデータを保持
                     app.ui_state.sequence_diagram.png_size = [w as u32, h as u32];
                     app.ui_state.sequence_diagram.png_rgba = result
                         .image
@@ -516,8 +529,31 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
                         .iter()
                         .flat_map(|c| c.to_array())
                         .collect();
+
+                    // GPU の最大テクスチャサイズを超える場合は load_texture が
+                    // wgpu 内部で panic するため、等倍のまま左上から切り出して
+                    // 表示可能な範囲のみアップロードする (縮小はしない)。
+                    let max_side = ctx.input(|i| i.max_texture_side);
+                    let cw = w.min(max_side);
+                    let ch = h.min(max_side);
+                    let preview_image = if cw == w && ch == h {
+                        result.image
+                    } else {
+                        let mut pixels = Vec::with_capacity(cw * ch);
+                        for y in 0..ch {
+                            let row_start = y * w;
+                            pixels
+                                .extend_from_slice(&result.image.pixels[row_start..row_start + cw]);
+                        }
+                        ColorImage {
+                            size: [cw, ch],
+                            pixels,
+                            source_size: Vec2::new(cw as f32, ch as f32),
+                        }
+                    };
+                    app.ui_state.sequence_diagram.image_size = [cw, ch];
                     let texture =
-                        ctx.load_texture("sequence_diagram", result.image, TextureOptions::LINEAR);
+                        ctx.load_texture("sequence_diagram", preview_image, TextureOptions::LINEAR);
                     app.ui_state.sequence_diagram.texture = Some(texture);
                     app.ui_state.sequence_diagram.svg = result.svg;
                     true
@@ -596,6 +632,14 @@ pub fn draw(ctx: &egui::Context, app: &mut GlassApp) {
 
                     if let Some(ref texture) = app.ui_state.sequence_diagram.texture {
                         let [w, h] = app.ui_state.sequence_diagram.image_size;
+                        let [fw, fh] = app.ui_state.sequence_diagram.full_size;
+                        if w < fw || h < fh {
+                            ui.label(format!(
+                                "プレビューは {}x{}px のみ表示しています (全体 {}x{}px)。全体は SVG / PNG 保存で確認してください",
+                                w, h, fw, fh
+                            ));
+                            ui.separator();
+                        }
                         ScrollArea::both()
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
