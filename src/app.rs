@@ -514,7 +514,9 @@ impl GlassApp {
         self.ui_state.monitor_selection.clear();
         self.ui_state.protocol_selection.clear();
         self.last_byte_time = None;
-        self.search = SearchState::new();
+        // 検索クエリのテキストは保持し、ヒット結果のみ解除する
+        self.search.clear();
+        self.protocol_search.clear();
         self.trigger.disarm();
         self.trigger.reset_scan_cursor(0);
     }
