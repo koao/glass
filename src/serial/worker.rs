@@ -250,12 +250,24 @@ mod win32_receiver {
         let mut last_byte_time: Option<Instant> = None;
         let wait_handles = [comm_event, stop_event];
 
-        loop {
-            if stop.try_recv().is_ok() {
-                unsafe { SetEvent(stop_event) };
-                break;
-            }
+        // HANDLE は !Send なので Send を約束する newtype で包んで forwarder に渡す
+        struct SendHandle(HANDLE);
+        unsafe impl Send for SendHandle {}
+        let stop_event_send = SendHandle(stop_event);
 
+        // 受信ループは WaitForMultipleObjects(INFINITE) でブロックするため、
+        // stop チャネルを監視して stop_event を起こす小スレッドを使う。
+        // shutdown_tx は受信ループがエラー終了した際に forwarder を起こす経路。
+        let (shutdown_tx, shutdown_rx) = crossbeam_channel::bounded::<()>(1);
+        let forwarder = std::thread::spawn(move || {
+            let SendHandle(h) = stop_event_send;
+            crossbeam_channel::select! {
+                recv(stop) -> _ => unsafe { SetEvent(h); },
+                recv(shutdown_rx) -> _ => {}
+            }
+        });
+
+        loop {
             let mut event_mask: u32 = 0;
             let mut overlapped: OVERLAPPED = unsafe { mem::zeroed() };
             overlapped.hEvent = comm_event;
@@ -329,6 +341,9 @@ mod win32_receiver {
             }
         }
 
+        // stop_event を閉じる前に forwarder を終了させる (use-after-close 回避)
+        let _ = shutdown_tx.send(());
+        let _ = forwarder.join();
         cleanup_thread();
         Ok(())
     }

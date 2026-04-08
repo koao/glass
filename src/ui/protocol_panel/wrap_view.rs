@@ -1,4 +1,4 @@
-use egui::{Align, Rect, ScrollArea, Sense, Ui, Vec2};
+use egui::{Rect, ScrollArea, Sense, Ui, Vec2};
 use egui_phosphor::regular;
 
 use crate::app::{GlassApp, MonitorState, WrapSlot, WrapSlotKind, WrapViewState};
@@ -644,15 +644,8 @@ fn draw_wrap_view_stopped(ui: &mut Ui, app: &mut GlassApp) {
                 });
             }
 
-            // スクロール先の行が現在の可視範囲外にある場合でも発火するよう、
-            // 可視行カリングの前に scroll_to_rect を呼ぶ
             if let Some(row) = scroll_to_row {
-                let y_top = rect.min.y + row as f32 * row_h;
-                let target = Rect::from_min_size(
-                    egui::pos2(rect.min.x, y_top),
-                    Vec2::new(available_width, row_h),
-                );
-                ui.scroll_to_rect(target, Some(Align::Center));
+                super::scroll_to_virtual_row(ui, rect, row, row_h, available_width);
             }
 
             let clip = ui.clip_rect();

@@ -26,6 +26,22 @@ use wrap_view::draw_wrap_view;
 /// 行の高さ
 pub(super) const ROW_HEIGHT: f32 = 28.0;
 
+/// 仮想スクロールの行へスクロール。可視行カリングの前に呼ぶこと
+/// (描画ループ内に置くと対象が範囲外のとき発火しない)。
+/// `relative_row` は描画開始行 (row_offset) からの相対位置。
+pub(super) fn scroll_to_virtual_row(
+    ui: &mut Ui,
+    container: egui::Rect,
+    relative_row: usize,
+    row_height: f32,
+    width: f32,
+) {
+    let y = container.min.y + relative_row as f32 * row_height;
+    let target =
+        egui::Rect::from_min_size(egui::pos2(container.min.x, y), Vec2::new(width, row_height));
+    ui.scroll_to_rect(target, Some(Align::Center));
+}
+
 /// CRC NG バッジの色
 pub(super) const CHECKSUM_NG_COLOR: egui::Color32 = egui::Color32::from_rgb(220, 110, 110);
 
