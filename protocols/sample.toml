@@ -1,49 +1,45 @@
 # Sample Protocol Definition
 #
-# Frame structure:
-#   ENQ(05) + Address(3) = 4 bytes fixed
-#   EOT(04) + Address(3) = 4 bytes fixed
-#   ACK(06) + Address(3) = 4 bytes fixed
-#   NAK(15) + Address(3) = 4 bytes fixed
-#   STX(02) + Dest(3) + Src(3) + Data(n) + ETX(03) + BCC(2)
-#
-# Data field:
-#   Command code (2-byte ASCII) + fields
+# Transport:
+#   ENQ(05) + Type(1) + Addr(2) = 4 bytes
+#   EOT(04) + Type(1) + Addr(2) = 4 bytes
+#   ACK(06) + Type(1) + Addr(2) = 4 bytes
+#   NAK(15) + Type(1) + Addr(2) = 4 bytes
+#   STX(02) + Type(1) + Addr(2) + Data(n) + ETX(03) + CRC(2)
 
 [protocol]
 title = "Sample Protocol"
-frame_idle_threshold_ms = 5.0
+frame_idle_threshold_ms = 1.7
 
 [protocol.sequence]
-source = "Src"
-destination = "Dest"
-broadcast = "999"
+broadcast = "99"
+master = "M"
 
-# Frame rules
 [[protocol.frame_rules]]
-trigger = "02"       # STX -> ETX + BCC (2 bytes)
+trigger = "02"
 end = "03"
 end_extra = 2
 max_length = 256
+checksum = { algorithm = "crc16_arc", range = "after_trigger_to_end", size = 2, endian = "big" }
 
 [[protocol.frame_rules]]
-trigger = "05"       # ENQ + Address (3 bytes) = 4 bytes fixed
+trigger = "05"
 length = 4
 
 [[protocol.frame_rules]]
-trigger = "04"       # EOT + Address (3 bytes) = 4 bytes fixed
+trigger = "04"
 length = 4
 
 [[protocol.frame_rules]]
-trigger = "06"       # ACK + Address (3 bytes) = 4 bytes fixed
+trigger = "06"
 length = 4
 
 [[protocol.frame_rules]]
-trigger = "15"       # NAK + Address (3 bytes) = 4 bytes fixed
+trigger = "15"
 length = 4
 
 # ============================================================
-# Control commands (fixed-length frames)
+# Control
 # ============================================================
 
 [[messages]]
@@ -51,11 +47,19 @@ id = "enq"
 title = "ENQ"
 color = "78A0DC"
 pattern = "^05[0-9A-F]{6}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
 
 [[messages.fields]]
 name = "Addr"
-offset = 1
-size = 3
+offset = 2
+size = 2
 inline = true
 
 [[messages]]
@@ -63,11 +67,19 @@ id = "eot"
 title = "EOT"
 color = "88909F"
 pattern = "^04[0-9A-F]{6}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
 
 [[messages.fields]]
 name = "Addr"
-offset = 1
-size = 3
+offset = 2
+size = 2
 inline = true
 
 [[messages]]
@@ -77,9 +89,15 @@ color = "78C88C"
 pattern = "^06[0-9A-F]{6}$"
 
 [[messages.fields]]
-name = "Addr"
+name = "Type"
 offset = 1
-size = 3
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
 inline = true
 
 [[messages]]
@@ -89,268 +107,801 @@ color = "D47070"
 pattern = "^15[0-9A-F]{6}$"
 
 [[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
 name = "Addr"
-offset = 1
-size = 3
+offset = 2
+size = 2
 inline = true
 
 # ============================================================
-# Data messages (STX...ETX+BCC)
-# STX + Dest(3) + Src(3) + Cmd(2) + Data + ETX + BCC(2)
+# M -> Node
 # ============================================================
 
 [[messages]]
-id = "msg_a"
-title = "Message A"
-color = "D4A56A"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3331[0-9A-F]{8}03[0-9A-F]{4}$"
-
-[[messages.fields]]
-name = "Dest"
-offset = 1
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Mode"
-offset = 9
-size = 1
-description = "0=Normal, 1=ModeA, 2=ModeB, 3=ModeC, 4=ModeD"
-
-[[messages.fields]]
-name = "Status"
-offset = 10
-size = 1
-description = "0=OFF, 1=ON"
-
-[[messages.fields]]
-name = "Count"
-offset = 11
-size = 2
-
-[[messages]]
-id = "msg_b"
-title = "Message B"
-color = "D4A56A"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}333203[0-9A-F]{4}$|^02[0-9A-F]{6}[0-9A-F]{6}3332[0-9A-F]+03[0-9A-F]{4}$"
-
-[[messages.fields]]
-name = "Dest"
-offset = 1
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Offset"
-offset = 9
-size = 2
-
-[[messages]]
-id = "msg_c"
-title = "Message C"
-color = "D4A56A"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3333[0-9A-F]{22}03[0-9A-F]{4}$"
-
-[[messages.fields]]
-name = "Dest"
-offset = 1
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
-inline = true
+id = "msg_01"
+title = "Message1<01>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}303103[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
 
 [[messages.fields]]
 name = "Type"
-offset = 9
+offset = 1
 size = 1
+inline = true
 
 [[messages.fields]]
-name = "Index"
-offset = 10
-size = 1
-
-[[messages.fields]]
-name = "Group"
-offset = 11
-size = 1
-
-[[messages.fields]]
-name = "Code"
-offset = 12
-size = 8
+name = "Addr"
+offset = 2
+size = 2
+inline = true
 
 [[messages]]
-id = "msg_d"
-title = "Message D"
-color = "D4A56A"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3334[0-9A-F]{22}03[0-9A-F]{4}$"
-
-[[messages.fields]]
-name = "Dest"
-offset = 1
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
-inline = true
+id = "msg_02"
+title = "Message2<02>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3032[0-9A-F]{6}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
 
 [[messages.fields]]
 name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
+
+[[messages.fields]]
+name = "Field2"
+offset = 7
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 8
+size = 1
+
+[[messages]]
+id = "msg_03"
+title = "Message3<03>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3033[0-9A-F]{10}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 3
+
+[[messages.fields]]
+name = "Field2"
 offset = 9
 size = 1
 
 [[messages.fields]]
-name = "Index"
+name = "Field3"
+offset = 10
+size = 1
+
+[[messages]]
+id = "msg_04"
+title = "Message4<04>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3034[0-9A-F]{44}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
+
+[[messages.fields]]
+name = "Field2"
+offset = 7
+size = 3
+
+[[messages.fields]]
+name = "Field3"
+offset = 10
+size = 3
+
+[[messages.fields]]
+name = "Field4"
+offset = 13
+size = 3
+
+[[messages.fields]]
+name = "Field5"
+offset = 16
+size = 3
+
+[[messages.fields]]
+name = "Field6"
+offset = 19
+size = 1
+
+[[messages.fields]]
+name = "Field7"
+offset = 20
+size = 1
+
+[[messages.fields]]
+name = "Field8"
+offset = 21
+size = 1
+
+[[messages.fields]]
+name = "Field9"
+offset = 22
+size = 1
+
+[[messages.fields]]
+name = "Field10"
+offset = 23
+size = 1
+
+[[messages.fields]]
+name = "Field11"
+offset = 24
+size = 1
+
+[[messages.fields]]
+name = "Field12"
+offset = 25
+size = 1
+
+[[messages.fields]]
+name = "Field13"
+offset = 26
+size = 1
+
+[[messages.fields]]
+name = "Field14"
+offset = 27
+size = 1
+
+[[messages]]
+id = "msg_05"
+title = "Message5<05>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3035[0-9A-F]{12}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 3
+
+[[messages.fields]]
+name = "Field2"
+offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Field3"
 offset = 10
 size = 1
 
 [[messages.fields]]
-name = "Group"
+name = "Field4"
+offset = 11
+size = 1
+
+[[messages]]
+id = "msg_06"
+title = "Message6<06>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3036[0-9A-F]{8}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
+
+[[messages.fields]]
+name = "Field2"
+offset = 7
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 8
+size = 2
+
+[[messages]]
+id = "msg_07"
+title = "Message7<07>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}303703[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages]]
+id = "msg_08"
+title = "Message8<08>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3038[0-9A-F]+03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 2
+
+[[messages.fields]]
+name = "Field2"
+offset = 8
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Field4"
+offset = 10
+size = 1
+
+[[messages.fields]]
+name = "Field5"
 offset = 11
 size = 1
 
 [[messages.fields]]
-name = "Code"
+name = "Field6"
 offset = 12
+size = 1
+
+[[messages.fields]]
+name = "Field7"
+offset = 13
+size = 1
+
+[[messages.fields]]
+name = "Field8"
+offset = 14
+size = 1
+
+[[messages.fields]]
+name = "Field9"
+offset = 15
+size = 1
+
+[[messages.fields]]
+name = "Field10"
+offset = 16
+size = 1
+
+[[messages.fields]]
+name = "Field11"
+offset = 17
+size = 1
+
+[[messages.fields]]
+name = "Field12"
+offset = 18
+size = 1
+
+[[messages.fields]]
+name = "Field13"
+offset = 19
+size = 1
+
+[[messages]]
+id = "msg_09"
+title = "Message9<09>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3039[0-9A-F]{20}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
+
+[[messages.fields]]
+name = "Field2"
+offset = 7
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 8
 size = 8
 
 [[messages]]
-id = "msg_e"
-title = "Message E"
-color = "D4A56A"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3335[0-9A-F]+03[0-9A-F]{4}$"
+id = "msg_10"
+title = "Message10<10>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}313003[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
 
 [[messages.fields]]
-name = "Dest"
+name = "Type"
 offset = 1
-size = 3
+size = 1
 inline = true
 
 [[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
+name = "Addr"
+offset = 2
+size = 2
 inline = true
-
-[[messages.fields]]
-name = "ID"
-offset = 9
-size = 6
 
 [[messages]]
-id = "msg_f"
-title = "Message F"
-color = "78A0DC"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3336[0-9A-F]{28}03[0-9A-F]{4}$"
+id = "msg_11"
+title = "Message11<11>"
+color = "5B9BD5"
+pattern = "^02[0-9A-F]{6}3131[0-9A-F]{2}03[0-9A-F]{4}$"
+sequence_source = "=M"
+sequence_destination = "{Type}:{Addr}"
 
 [[messages.fields]]
-name = "Dest"
+name = "Type"
 offset = 1
-size = 3
+size = 1
 inline = true
 
 [[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
+name = "Addr"
+offset = 2
+size = 2
 inline = true
 
 [[messages.fields]]
-name = "Year"
+name = "Field1"
+offset = 6
+size = 1
+
+# ============================================================
+# Node -> M
+# ============================================================
+
+[[messages]]
+id = "msg_51"
+title = "Message51<51>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3531[0-9A-F]{20}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
+
+[[messages.fields]]
+name = "Field2"
+offset = 7
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 8
+size = 1
+
+[[messages.fields]]
+name = "Field4"
 offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Field5"
+offset = 10
+size = 1
+
+[[messages.fields]]
+name = "Field6"
+offset = 11
+size = 1
+
+[[messages.fields]]
+name = "Field7"
+offset = 12
+size = 1
+
+[[messages.fields]]
+name = "Field8"
+offset = 13
+size = 1
+
+[[messages.fields]]
+name = "Field9"
+offset = 14
+size = 1
+
+[[messages.fields]]
+name = "Field10"
+offset = 15
+size = 1
+
+[[messages]]
+id = "msg_52"
+title = "Message52<52>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3532[0-9A-F]{42}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 3
+
+[[messages.fields]]
+name = "Field2"
+offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 10
+size = 1
+
+[[messages.fields]]
+name = "Field4"
+offset = 11
+size = 16
+
+[[messages]]
+id = "msg_53"
+title = "Message53<53>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3533[0-9A-F]{8}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 3
+
+[[messages.fields]]
+name = "Field2"
+offset = 9
+size = 1
+
+[[messages]]
+id = "msg_54"
+title = "Message54<54>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3534[0-9A-F]{18}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
+
+[[messages.fields]]
+name = "Field2"
+offset = 7
+size = 8
+
+[[messages]]
+id = "msg_55"
+title = "Message55<55>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3535[0-9A-F]{24}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 3
+
+[[messages.fields]]
+name = "Field2"
+offset = 9
+size = 1
+
+[[messages.fields]]
+name = "Field3"
+offset = 10
+size = 8
+
+[[messages]]
+id = "msg_56"
+title = "Message56<56>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3536[0-9A-F]{10}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 3
+
+[[messages.fields]]
+name = "Field2"
+offset = 9
+size = 2
+
+[[messages]]
+id = "msg_57"
+title = "Message57<57>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3537[0-9A-F]{22}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 11
+
+[[messages]]
+id = "msg_58"
+title = "Message58<58>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3538[0-9A-F]{24}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
+
+[[messages.fields]]
+name = "Type"
+offset = 1
+size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
 size = 4
 
 [[messages.fields]]
-name = "Month"
-offset = 13
-size = 2
-
-[[messages.fields]]
-name = "Day"
-offset = 15
-size = 2
-
-[[messages.fields]]
-name = "Hour"
-offset = 17
-size = 2
-
-[[messages.fields]]
-name = "Min"
-offset = 19
-size = 2
-
-[[messages.fields]]
-name = "Sec"
-offset = 21
-size = 2
+name = "Field2"
+offset = 10
+size = 8
 
 [[messages]]
-id = "msg_g"
-title = "Message G"
-color = "78A0DC"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}3831[0-9A-F]{14}03[0-9A-F]{4}$"
+id = "msg_59"
+title = "Message59<59>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3539[0-9A-F]{4}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
 
 [[messages.fields]]
-name = "Dest"
+name = "Type"
 offset = 1
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
-inline = true
-
-[[messages.fields]]
-name = "Target"
-offset = 9
-size = 3
-
-[[messages.fields]]
-name = "Channel"
-offset = 12
-size = 3
-
-[[messages.fields]]
-name = "Value"
-offset = 15
 size = 1
+inline = true
+
+[[messages.fields]]
+name = "Addr"
+offset = 2
+size = 2
+inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 2
 
 [[messages]]
-id = "msg_h"
-title = "Message H"
-color = "78A0DC"
-pattern = "^02[0-9A-F]{6}[0-9A-F]{6}383203[0-9A-F]{4}$"
+id = "msg_61"
+title = "Message61<61>"
+color = "D4A56A"
+pattern = "^02[0-9A-F]{6}3631[0-9A-F]{2}03[0-9A-F]{4}$"
+sequence_source = "{Type}:{Addr}"
+sequence_destination = "=M"
 
 [[messages.fields]]
-name = "Dest"
+name = "Type"
 offset = 1
-size = 3
+size = 1
 inline = true
 
 [[messages.fields]]
-name = "Src"
-offset = 4
-size = 3
+name = "Addr"
+offset = 2
+size = 2
 inline = true
+
+[[messages.fields]]
+name = "Field1"
+offset = 6
+size = 1
