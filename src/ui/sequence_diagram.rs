@@ -109,17 +109,27 @@ fn resolve_endpoints(
     let source_expr = msg_def
         .and_then(|d| d.sequence_source.as_deref())
         .or(seq_config.source.as_deref());
-    let source = source_expr.and_then(|expr| eval_expr(expr, bytes, fields));
+    let source = source_expr
+        .and_then(|expr| eval_expr(expr, bytes, fields))
+        .map(|s| sanitize_participant(&s));
 
     let dest_expr = msg_def
         .and_then(|d| d.sequence_destination.as_deref())
         .or(seq_config.destination.as_deref());
-    let dest = dest_expr.and_then(|expr| eval_expr(expr, bytes, fields));
+    let dest = dest_expr
+        .and_then(|expr| eval_expr(expr, bytes, fields))
+        .map(|s| sanitize_participant(&s));
 
     (source, dest)
 }
 
 // ===== Mermaid構文生成 =====
+
+/// participant 名に使えない文字 (`:` は Mermaid のメッセージ区切りと衝突する)
+/// を全角に置き換える。空白も Mermaid が ID として扱えないので潰す。
+fn sanitize_participant(s: &str) -> String {
+    s.replace(':', "：").replace(' ', "_")
+}
 
 fn escape_mermaid(s: &str) -> String {
     s.replace('#', "#35;").replace(';', "#59;")
@@ -277,6 +287,13 @@ fn build_mermaid(
     }
 
     participants.sort();
+    // マスタ参加者は常に一番左に固定する
+    if let Some(master) = seq_config.master.as_deref()
+        && let Some(pos) = participants.iter().position(|p| p == master)
+    {
+        let m = participants.remove(pos);
+        participants.insert(0, m);
+    }
     for p in &participants {
         lines.push(format!("    participant {}", p));
     }

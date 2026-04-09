@@ -24,6 +24,9 @@ pub struct SequenceConfig {
     /// ブロードキャスト値（この値が宛先の場合、全参加者への送信）
     #[serde(default)]
     pub broadcast: Option<String>,
+    /// マスタ参加者名 (常にシーケンス図の一番左に固定される)
+    #[serde(default)]
+    pub master: Option<String>,
 }
 
 /// プロトコルメタデータ
