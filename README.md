@@ -18,7 +18,12 @@ A half-duplex serial monitor for Windows, built with Rust and egui.
 - **Dark theme** — eye-friendly for long monitoring sessions
 - **Error tracking** — framing, overrun, and parity error counts
 - **Protocol definition** — TOML-based protocol definitions for automatic frame extraction and message decoding
+- **Sequence diagram** — visualize selected protocol messages as a UML-style sequence diagram
+- **Checksum / CRC verification** — validate frame checksums (CRC-16, sum, XOR) and highlight mismatches
+- **Protocol search** — find messages in the protocol panel by title or field content
+- **Pattern trigger** — auto-pause when a configured byte pattern is received
 - **Selection & Copy** — select ranges in monitor or protocol views, copy via Ctrl+C or right-click menu (ASCII, HEX, binary formats)
+- **Configurable colors** — customize monitor character colors from settings
 
 ## Protocol Definition
 
@@ -36,7 +41,16 @@ Messages are displayed as compact pills in a wrapping layout. During live monito
 
 ![Protocol Wrap View](docs/screenshots/protocol_wrap.png)
 
+### Sequence Diagram
+
+Selected messages can be rendered as a UML-style sequence diagram, with participants derived from the message source/destination. Useful for visually following request/response flows.
+
+![Sequence Diagram](docs/screenshots/sequence_diagram.png)
+
 ### TOML Format
+
+For the complete reference (all keys, frame rules, checksum specs, sequence-diagram expressions) see [docs/protocol_format.md](docs/protocol_format.md).
+
 
 ```toml
 [protocol]
