@@ -1,7 +1,7 @@
 use egui::{Ui, Vec2};
 use egui_phosphor::regular;
 
-use crate::app::{GlassApp, MonitorState};
+use crate::app::GlassApp;
 use crate::ui::theme;
 
 /// トグル式検索バー描画
@@ -38,7 +38,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             }
 
             // 受信中は移動ボタン無効
-            let is_stopped = app.state == MonitorState::Stopped;
+            let is_stopped = app.state.is_idle();
             let has_results = app.search.result_count() > 0;
             let can_navigate = has_results && is_stopped;
             let prev_clicked = ui

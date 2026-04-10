@@ -143,6 +143,14 @@ pub enum MonitorState {
     Stopped,
     Running,
     Paused,
+    Disconnected,
+}
+
+impl MonitorState {
+    /// 受信していない状態（停止中または切断済み）か
+    pub fn is_idle(&self) -> bool {
+        matches!(self, Self::Stopped | Self::Disconnected)
+    }
 }
 
 /// 設定ウィンドウのタブ
@@ -469,17 +477,7 @@ impl GlassApp {
         if let Some(sender) = self.stop_sender.take() {
             let _ = sender.send(());
         }
-        if let Some(handle) = self.worker_handle.take() {
-            let _ = handle.join();
-        }
-        self.receiver = None;
-        self.state = MonitorState::Stopped;
-        self.trigger.disarm();
-        // 停止時にバッファを同期（スクロール表示用）
-        self.sync_views_to_buffer();
-        if let Some(engine) = &self.protocol_engine {
-            self.protocol_state.flush(engine);
-        }
+        self.teardown(MonitorState::Stopped);
     }
 
     /// display_buffer と protocol_state を現在の生バッファに同期
@@ -495,12 +493,41 @@ impl GlassApp {
     /// チャネルからデータをドレイン
     pub fn drain_channel(&mut self) {
         if let Some(rx) = &self.receiver {
-            for entry in rx.try_iter() {
-                if let DataEntry::Byte(_, ts) = &entry {
-                    self.last_byte_time = Some(*ts);
+            loop {
+                match rx.try_recv() {
+                    Ok(entry) => {
+                        if let DataEntry::Byte(_, ts) = &entry {
+                            self.last_byte_time = Some(*ts);
+                        }
+                        self.buffer.push(entry);
+                    }
+                    Err(crossbeam_channel::TryRecvError::Empty) => break,
+                    Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                        self.on_disconnected();
+                        return;
+                    }
                 }
-                self.buffer.push(entry);
             }
+        }
+    }
+
+    /// ワーカースレッド切断時の後処理
+    fn on_disconnected(&mut self) {
+        self.stop_sender.take();
+        self.teardown(MonitorState::Disconnected);
+    }
+
+    /// 受信停止の共通後処理
+    fn teardown(&mut self, new_state: MonitorState) {
+        if let Some(handle) = self.worker_handle.take() {
+            let _ = handle.join();
+        }
+        self.receiver = None;
+        self.state = new_state;
+        self.trigger.disarm();
+        self.sync_views_to_buffer();
+        if let Some(engine) = &self.protocol_engine {
+            self.protocol_state.flush(engine);
         }
     }
 
@@ -777,7 +804,7 @@ impl eframe::App for GlassApp {
             }
         }
         // Ctrl+O: ファイル読み込み（停止中のみ）
-        let is_stopped = self.state == MonitorState::Stopped;
+        let is_stopped = self.state.is_idle();
         if ctrl_o && is_stopped {
             self.load_from_file();
         }

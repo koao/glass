@@ -88,6 +88,16 @@ fn draw_status_pill(ui: &mut Ui, app: &GlassApp) {
             theme::STATUS_PAUSED,
             theme::PILL_BG_PAUSED,
         ),
+        MonitorState::Disconnected => (
+            format!(
+                "{} {} {}",
+                regular::CIRCLE,
+                app.config.port_name,
+                app.t.status_disconnected
+            ),
+            theme::STATUS_ERROR,
+            theme::PILL_BG_DISCONNECTED,
+        ),
     };
 
     egui::Frame::new()

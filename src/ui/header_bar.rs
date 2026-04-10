@@ -9,7 +9,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         // 操作ボタン（常時3つ表示、状態に応じて有効/無効）
-        let is_stopped = app.state == MonitorState::Stopped;
+        let is_stopped = app.state.is_idle();
         let is_running = app.state == MonitorState::Running;
         let is_paused = app.state == MonitorState::Paused;
 

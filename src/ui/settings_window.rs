@@ -1,7 +1,7 @@
 use egui::Ui;
 use egui_phosphor::regular;
 
-use crate::app::{GlassApp, MonitorState, SettingsTab};
+use crate::app::{GlassApp, SettingsTab};
 use crate::i18n::Language;
 use crate::serial::config::{BAUD_RATES, DATA_BITS, ParitySetting, StopBitsSetting};
 use crate::settings::MonitorColors;
@@ -87,7 +87,7 @@ fn combo_row<T: PartialEq + Clone>(
 
 /// シリアルポート設定タブ
 fn draw_serial_tab(ui: &mut Ui, app: &mut GlassApp) {
-    let is_stopped = app.state == MonitorState::Stopped;
+    let is_stopped = app.state.is_idle();
 
     ui.add_space(4.0);
 

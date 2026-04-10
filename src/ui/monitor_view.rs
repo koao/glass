@@ -225,7 +225,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
         MonitorState::Running | MonitorState::Paused => {
             draw_ring_buffer(ui, app, cell_w, cell_h, cols);
         }
-        MonitorState::Stopped => {
+        MonitorState::Stopped | MonitorState::Disconnected => {
             draw_scrollable(ui, app, cell_w, cell_h, cols);
         }
     }

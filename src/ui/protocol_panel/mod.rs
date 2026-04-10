@@ -140,7 +140,7 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
                     ui.colored_label(theme::TEXT_MUTED, app.t.protocol_no_match);
                 });
             } else {
-                let is_stopped = app.state == MonitorState::Stopped;
+                let is_stopped = app.state.is_idle();
                 let scroll_to_row =
                     app.protocol_search
                         .take_scroll_target()
@@ -354,7 +354,7 @@ fn draw_protocol_search_bar(ui: &mut Ui, app: &mut GlassApp) {
                 app.protocol_search.reset();
             }
 
-            let is_stopped = app.state == MonitorState::Stopped;
+            let is_stopped = app.state.is_idle();
             let has_results = app.protocol_search.result_count() > 0;
             let can_navigate = has_results && is_stopped;
             let prev_clicked = ui

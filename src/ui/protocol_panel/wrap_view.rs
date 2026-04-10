@@ -268,7 +268,7 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         return;
     }
 
-    if app.state == MonitorState::Stopped {
+    if app.state.is_idle() {
         draw_wrap_view_stopped(ui, app);
         return;
     }

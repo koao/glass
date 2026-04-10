@@ -46,6 +46,8 @@ pub const PILL_BG_STOPPED: Color32 = Color32::from_rgb(60, 63, 80);
 pub const PILL_BG_RUNNING: Color32 = Color32::from_rgb(30, 70, 50);
 /// ステータスピル背景（一時停止）
 pub const PILL_BG_PAUSED: Color32 = Color32::from_rgb(70, 55, 30);
+/// ステータスピル背景（切断）
+pub const PILL_BG_DISCONNECTED: Color32 = Color32::from_rgb(80, 40, 40);
 
 // --- プロトコルパネル ---
 /// IDLE表示（ミュート）

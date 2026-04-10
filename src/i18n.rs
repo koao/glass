@@ -54,6 +54,7 @@ pub struct Texts {
     pub status_stopped: &'static str,
     pub status_receiving: &'static str,
     pub status_paused: &'static str,
+    pub status_disconnected: &'static str,
 
     // -- search_bar --
     pub search_label: &'static str,
@@ -191,6 +192,7 @@ const JA: Texts = Texts {
     status_stopped: "停止",
     status_receiving: "受信中",
     status_paused: "一時停止",
+    status_disconnected: "切断",
 
     // search_bar
     search_label: "検索:",
@@ -328,6 +330,7 @@ const EN: Texts = Texts {
     status_stopped: "Stopped",
     status_receiving: "Receiving",
     status_paused: "Paused",
+    status_disconnected: "Disconnected",
 
     // search_bar
     search_label: "Search:",
