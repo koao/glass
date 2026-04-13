@@ -72,6 +72,7 @@ pub struct Texts {
     pub search_help_hex_byte: &'static str,
     pub search_help_other_chars: &'static str,
     pub search_help_ascii_literal: &'static str,
+    pub search_help_idle: &'static str,
     pub search_help_examples: &'static str,
 
     // -- settings_window --
@@ -134,6 +135,7 @@ pub struct Texts {
     pub protocol_search_help_or: &'static str,
     pub protocol_search_help_hex: &'static str,
     pub protocol_search_help_quote: &'static str,
+    pub protocol_search_help_idle: &'static str,
 
     // -- コピーメニュー --
     pub copy_mixed: &'static str,
@@ -210,6 +212,7 @@ const JA: Texts = Texts {
     search_help_hex_byte: "16進数バイト",
     search_help_other_chars: "その他の文字",
     search_help_ascii_literal: "ASCII文字そのまま",
+    search_help_idle: "IDLE検索（>, >=, <, <=, =, -）",
     search_help_examples: "入力例:",
 
     // settings_window
@@ -272,6 +275,7 @@ const JA: Texts = Texts {
     protocol_search_help_or: "OR — いずれかを含む",
     protocol_search_help_hex: "$XX — HEXバイトパターン（例: $02$03）",
     protocol_search_help_quote: "\"...\" — スペースを含む語をまとめる",
+    protocol_search_help_idle: "@IDLE — IDLE検索（@IDLE>100, @IDLE100-500）",
 
     // コピーメニュー
     copy_mixed: "コピー（ASCII: $05OK）",
@@ -348,6 +352,7 @@ const EN: Texts = Texts {
     search_help_hex_byte: "Hex byte",
     search_help_other_chars: "Other characters",
     search_help_ascii_literal: "Literal ASCII",
+    search_help_idle: "IDLE search (>, >=, <, <=, =, -)",
     search_help_examples: "Examples:",
 
     // settings_window
@@ -410,6 +415,7 @@ const EN: Texts = Texts {
     protocol_search_help_or: "OR — contains either",
     protocol_search_help_hex: "$XX — HEX byte pattern (e.g. $02$03)",
     protocol_search_help_quote: "\"...\" — group words with spaces",
+    protocol_search_help_idle: "@IDLE — IDLE search (@IDLE>100, @IDLE100-500)",
 
     // コピーメニュー
     copy_mixed: "Copy (ASCII: $05OK)",

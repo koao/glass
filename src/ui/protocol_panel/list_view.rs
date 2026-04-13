@@ -169,16 +169,27 @@ pub(super) fn draw_match_list(
 
         match &rows[row_idx] {
             RowEntry::Idle(idle_ms) => {
+                let next_msg_id = rows[row_idx + 1..].iter().find_map(|r| match r {
+                    RowEntry::Message(idx, _) => Some(app.protocol_state.matches[*idx].id),
+                    _ => None,
+                });
+                if let Some(nid) = next_msg_id
+                    && let Some(is_current) = app.protocol_search.idle_highlight(nid)
+                {
+                    let bg = if is_current {
+                        theme::PROTO_SEARCH_CURRENT_BG
+                    } else {
+                        theme::PROTO_SEARCH_HIGHLIGHT_BG
+                    };
+                    painter.rect_filled(row_rect, 0.0, bg);
+                }
+
                 if let Some((sel_lo, sel_hi)) = app.ui_state.protocol_selection.range() {
                     let prev = rows[..row_idx].iter().rev().find_map(|r| match r {
                         RowEntry::Message(idx, _) => Some(app.protocol_state.matches[*idx].id),
                         _ => None,
                     });
-                    let next = rows[row_idx + 1..].iter().find_map(|r| match r {
-                        RowEntry::Message(idx, _) => Some(app.protocol_state.matches[*idx].id),
-                        _ => None,
-                    });
-                    let between = match (prev, next) {
+                    let between = match (prev, next_msg_id) {
                         (Some(p), Some(n)) => p >= sel_lo && n <= sel_hi,
                         _ => false,
                     };
@@ -192,9 +203,9 @@ pub(super) fn draw_match_list(
                 let matched = &app.protocol_state.matches[*match_idx];
                 let match_id = matched.id;
 
-                let bg = if app.protocol_search.is_current_hit(match_id) {
+                let bg = if app.protocol_search.is_message_current_hit(match_id) {
                     theme::PROTO_SEARCH_CURRENT_BG
-                } else if app.protocol_search.is_hit(match_id) {
+                } else if app.protocol_search.is_message_hit(match_id) {
                     theme::PROTO_SEARCH_HIGHLIGHT_BG
                 } else if *even {
                     theme::PROTOCOL_ROW_EVEN

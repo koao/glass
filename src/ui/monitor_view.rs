@@ -281,13 +281,23 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
             let cell = &app.display_buffer.cells()[disp_idx];
             let cr = cell_rect(rect, cell_idx, cols, cell_w, cell_h);
 
-            // 検索ハイライト背景
+            // 検索ハイライト背景（IdleChar は draw_cell 内で処理）
             let entry_idx = app.display_buffer.entry_indices()[disp_idx];
-            if let Some(bg) = search_highlight_bg(&app.search, entry_idx, time) {
+            let hl = search_highlight_bg(&app.search, entry_idx, time);
+            if let Some(bg) = hl
+                && !matches!(cell, DisplayCell::IdleChar(_))
+            {
                 painter.rect_filled(cr, 0.0, bg);
             }
 
-            draw_cell(&painter, cr, cell, &app.display_mode, &app.monitor_colors);
+            draw_cell(
+                &painter,
+                cr,
+                cell,
+                &app.display_mode,
+                &app.monitor_colors,
+                hl,
+            );
 
             // 選択ハイライト（半透明オーバーレイ）
             if app.ui_state.monitor_selection.contains(disp_idx) {
@@ -310,7 +320,7 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
             for (i, ch) in live_text.chars().enumerate() {
                 let idx = (buf_len + i) % total_cells;
                 let cr = cell_rect(rect, idx, cols, cell_w, cell_h);
-                draw_idle_char(&painter, cr, ch, &app.monitor_colors);
+                draw_idle_char(&painter, cr, ch, &app.monitor_colors, None);
             }
             cursor_pos = (buf_len + live_text.len()) % total_cells;
         }
@@ -387,13 +397,23 @@ fn draw_scrollable(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, co
                     }
                 }
 
-                // 検索ハイライト背景
+                // 検索ハイライト背景（IdleChar は draw_cell 内で処理）
                 let entry_idx = app.display_buffer.entry_indices()[i];
-                if let Some(bg) = search_highlight_bg(&app.search, entry_idx, time) {
+                let hl = search_highlight_bg(&app.search, entry_idx, time);
+                if let Some(bg) = hl
+                    && !matches!(cell, DisplayCell::IdleChar(_))
+                {
                     painter.rect_filled(cr, 0.0, bg);
                 }
 
-                draw_cell(&painter, cr, cell, &app.display_mode, &app.monitor_colors);
+                draw_cell(
+                    &painter,
+                    cr,
+                    cell,
+                    &app.display_mode,
+                    &app.monitor_colors,
+                    hl,
+                );
 
                 // 選択ハイライト（半透明オーバーレイ）
                 if app.ui_state.monitor_selection.contains(i) {
@@ -416,20 +436,29 @@ fn draw_cell(
     cell: &DisplayCell,
     mode: &DisplayMode,
     colors: &MonitorColors,
+    search_bg: Option<Color32>,
 ) {
     match cell {
         DisplayCell::Data(byte) => {
             draw_data_byte(painter, rect, *byte, mode, colors);
         }
         DisplayCell::IdleChar(ch) => {
-            draw_idle_char(painter, rect, *ch, colors);
+            draw_idle_char(painter, rect, *ch, colors, search_bg);
         }
     }
 }
 
 /// IDLEカウンタ文字を描画（背景色で区別、縦積み表示）
-fn draw_idle_char(painter: &egui::Painter, rect: Rect, ch: char, colors: &MonitorColors) {
-    painter.rect_filled(rect, 0.0, colors.idle_bg_color32());
+/// 検索ハイライト中は背景色を上書きする
+fn draw_idle_char(
+    painter: &egui::Painter,
+    rect: Rect,
+    ch: char,
+    colors: &MonitorColors,
+    search_bg: Option<Color32>,
+) {
+    let bg = search_bg.unwrap_or_else(|| colors.idle_bg_color32());
+    painter.rect_filled(rect, 0.0, bg);
     let font_id = FontId::monospace(MAIN_FONT_SIZE);
     painter.text(
         rect.center(),

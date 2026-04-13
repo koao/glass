@@ -109,6 +109,10 @@ pub fn draw_help(ui: &mut Ui, app: &mut GlassApp) {
                     ui.label(app.t.search_help_hex_byte);
                     ui.end_row();
 
+                    ui.monospace("@IDLE");
+                    ui.label(app.t.search_help_idle);
+                    ui.end_row();
+
                     ui.monospace(app.t.search_help_other_chars);
                     ui.label(app.t.search_help_ascii_literal);
                     ui.end_row();
@@ -134,6 +138,18 @@ pub fn draw_help(ui: &mut Ui, app: &mut GlassApp) {
 
                     ui.monospace("Hello");
                     ui.label("-> ASCII \"Hello\"");
+                    ui.end_row();
+
+                    ui.monospace("@IDLE");
+                    ui.label("-> IDLE (all)");
+                    ui.end_row();
+
+                    ui.monospace("@IDLE>100");
+                    ui.label("-> IDLE > 100ms");
+                    ui.end_row();
+
+                    ui.monospace("@IDLE100-500");
+                    ui.label("-> IDLE 100~500ms");
                     ui.end_row();
                 });
         });

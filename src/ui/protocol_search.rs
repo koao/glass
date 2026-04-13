@@ -4,11 +4,14 @@ use std::fmt::Write;
 use crate::protocol::definition::ProtocolFile;
 use crate::protocol::engine::MatchedMessage;
 use crate::ui::protocol_panel::{extract_ascii, extract_hex};
+use crate::ui::search::{IdleCondition, parse_idle_condition};
 
 /// パース済み検索式
 enum SearchExpr {
     /// 単一キーワード（小文字化済みテキスト、オプションのHEXバイトパターン）
     Term(String, Option<Vec<u8>>),
+    /// IDLE 条件 (@IDLE, @IDLE>100 など)
+    Idle(IdleCondition),
     /// AND結合
     And(Vec<SearchExpr>),
     /// OR結合
@@ -16,7 +19,27 @@ enum SearchExpr {
 }
 
 impl SearchExpr {
-    fn matches(&self, searchable_lower: &str, frame_bytes: &[u8]) -> bool {
+    fn contains_idle(&self) -> bool {
+        match self {
+            SearchExpr::Idle(_) => true,
+            SearchExpr::And(exprs) | SearchExpr::Or(exprs) => {
+                exprs.iter().any(|e| e.contains_idle())
+            }
+            SearchExpr::Term(..) => false,
+        }
+    }
+
+    fn contains_non_idle(&self) -> bool {
+        match self {
+            SearchExpr::Term(..) => true,
+            SearchExpr::Idle(_) => false,
+            SearchExpr::And(exprs) | SearchExpr::Or(exprs) => {
+                exprs.iter().any(|e| e.contains_non_idle())
+            }
+        }
+    }
+
+    fn matches(&self, searchable_lower: &str, frame_bytes: &[u8], idle_ms: Option<f64>) -> bool {
         match self {
             SearchExpr::Term(text, hex_pat) => {
                 let text_hit = searchable_lower.contains(text.as_str());
@@ -25,12 +48,13 @@ impl SearchExpr {
                     .is_some_and(|pat| contains_bytes(frame_bytes, pat));
                 text_hit || byte_hit
             }
+            SearchExpr::Idle(cond) => idle_ms.is_some_and(|ms| cond.matches(ms)),
             SearchExpr::And(exprs) => exprs
                 .iter()
-                .all(|e| e.matches(searchable_lower, frame_bytes)),
+                .all(|e| e.matches(searchable_lower, frame_bytes, idle_ms)),
             SearchExpr::Or(exprs) => exprs
                 .iter()
-                .any(|e| e.matches(searchable_lower, frame_bytes)),
+                .any(|e| e.matches(searchable_lower, frame_bytes, idle_ms)),
         }
     }
 }
@@ -71,17 +95,17 @@ fn parse_query(input: &str) -> Option<SearchExpr> {
         let terms: Vec<SearchExpr> = group
             .into_iter()
             .filter(|t| !matches!(t, Token::And))
-            .filter_map(|t| {
-                if let Token::Text(s) = t {
+            .filter_map(|t| match t {
+                Token::Text(s) => {
                     if s.is_empty() {
                         return None;
                     }
                     let lower = s.to_lowercase();
                     let hex_pat = parse_hex_pattern(s);
                     Some(SearchExpr::Term(lower, hex_pat))
-                } else {
-                    None
                 }
+                Token::IdleTok(cond) => Some(SearchExpr::Idle(cond.clone())),
+                _ => None,
             })
             .collect();
 
@@ -102,6 +126,7 @@ fn parse_query(input: &str) -> Option<SearchExpr> {
 /// トークン種別
 enum Token {
     Text(String),
+    IdleTok(IdleCondition),
     And,
     Or,
 }
@@ -151,7 +176,13 @@ fn push_text_or_keyword(tokens: &mut Vec<Token>, text: String) {
     match text.as_str() {
         "AND" => tokens.push(Token::And),
         "OR" => tokens.push(Token::Or),
-        _ => tokens.push(Token::Text(text)),
+        _ => {
+            if let Some(cond) = parse_idle_condition(&text) {
+                tokens.push(Token::IdleTok(cond));
+            } else {
+                tokens.push(Token::Text(text));
+            }
+        }
     }
 }
 
@@ -164,6 +195,10 @@ pub struct ProtocolSearchState {
     /// 次回 auto_refresh で走査を開始する match ID
     next_scan_id: u64,
     scroll_to_match: Option<u64>,
+    /// 検索式に @IDLE 条件が含まれるか
+    has_idle_expr: bool,
+    /// 検索式が IDLE 条件のみか（テキスト条件なし）
+    idle_only: bool,
 }
 
 impl ProtocolSearchState {
@@ -175,6 +210,8 @@ impl ProtocolSearchState {
             current: 0,
             next_scan_id: 0,
             scroll_to_match: None,
+            has_idle_expr: false,
+            idle_only: false,
         }
     }
 
@@ -184,13 +221,14 @@ impl ProtocolSearchState {
         matches: &[MatchedMessage],
         proto: Option<&ProtocolFile>,
         hidden_ids: &HashSet<String>,
+        show_idle: bool,
     ) {
         self.has_searched = true;
         self.current = 0;
         self.results.clear();
         self.scroll_to_match = None;
         self.next_scan_id = 0;
-        self.run_search(matches, proto, hidden_ids);
+        self.run_search(matches, proto, hidden_ids, show_idle);
         if !self.results.is_empty() {
             self.scroll_to_match = Some(self.results[self.current]);
         }
@@ -202,11 +240,12 @@ impl ProtocolSearchState {
         matches: &[MatchedMessage],
         proto: Option<&ProtocolFile>,
         hidden_ids: &HashSet<String>,
+        show_idle: bool,
     ) {
         if self.has_searched && !self.query.is_empty() {
             let last_id = matches.last().map(|m| m.id);
             if last_id.is_some_and(|id| id >= self.next_scan_id) {
-                self.run_search(matches, proto, hidden_ids);
+                self.run_search(matches, proto, hidden_ids, show_idle);
             }
         }
     }
@@ -217,11 +256,14 @@ impl ProtocolSearchState {
         matches: &[MatchedMessage],
         proto: Option<&ProtocolFile>,
         hidden_ids: &HashSet<String>,
+        show_idle: bool,
     ) {
         let expr = match parse_query(&self.query) {
             Some(e) => e,
             None => return,
         };
+        self.has_idle_expr = expr.contains_idle();
+        self.idle_only = self.has_idle_expr && !expr.contains_non_idle();
 
         let proto = match proto {
             Some(p) => p,
@@ -241,7 +283,13 @@ impl ProtocolSearchState {
             build_searchable_text(matched, proto, &mut buf);
             buf.make_ascii_lowercase();
 
-            if expr.matches(&buf, &matched.frame.bytes) {
+            let idle_ms = if show_idle {
+                matched.preceding_idle_ms
+            } else {
+                None
+            };
+
+            if expr.matches(&buf, &matched.frame.bytes, idle_ms) {
                 self.results.push(matched.id);
             }
         }
@@ -281,6 +329,8 @@ impl ProtocolSearchState {
         self.has_searched = false;
         self.next_scan_id = 0;
         self.scroll_to_match = None;
+        self.has_idle_expr = false;
+        self.idle_only = false;
     }
 
     pub fn result_count(&self) -> usize {
@@ -300,6 +350,31 @@ impl ProtocolSearchState {
             return false;
         }
         self.results[self.current] == id
+    }
+
+    /// IDLE 行のハイライト種別を返す。
+    /// 直後のメッセージが検索ヒットかつ @IDLE 条件を含む場合に Some。
+    /// `Some(true)` = current hit, `Some(false)` = hit
+    pub fn idle_highlight(&self, next_message_id: u64) -> Option<bool> {
+        if !self.has_idle_expr {
+            return None;
+        }
+        if self.is_current_hit(next_message_id) {
+            Some(true)
+        } else if self.is_hit(next_message_id) {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
+    /// メッセージ行のハイライト判定（IDLE のみ検索時はメッセージをハイライトしない）
+    pub fn is_message_hit(&self, id: u64) -> bool {
+        !self.idle_only && self.is_hit(id)
+    }
+
+    pub fn is_message_current_hit(&self, id: u64) -> bool {
+        !self.idle_only && self.is_current_hit(id)
     }
 
     pub fn take_scroll_target(&mut self) -> Option<u64> {
@@ -370,7 +445,7 @@ mod tests {
     fn matches(query: &str, text: &str) -> bool {
         let expr = parse_query(query).expect("non-empty query");
         // 検索対象テキストは事前小文字化済み
-        expr.matches(&text.to_ascii_lowercase(), &[])
+        expr.matches(&text.to_ascii_lowercase(), &[], None)
     }
 
     #[test]
@@ -421,19 +496,19 @@ mod tests {
         // "a AND b OR c" → (a AND b) OR c
         let expr = parse_query("a AND b OR c").unwrap();
         // c だけでヒット
-        assert!(expr.matches("c", &[]));
+        assert!(expr.matches("c", &[], None));
         // a と b が両方あればヒット
-        assert!(expr.matches("a b", &[]));
+        assert!(expr.matches("a b", &[], None));
         // a だけではヒットしない
-        assert!(!expr.matches("a", &[]));
+        assert!(!expr.matches("a", &[], None));
     }
 
     #[test]
     fn hex_pattern_matches_frame_bytes() {
         // $0D$0A はフレームのバイトパターンとしてマッチ
         let expr = parse_query("$0D$0A").unwrap();
-        assert!(expr.matches("", &[0x01, 0x0D, 0x0A, 0x02]));
-        assert!(!expr.matches("", &[0x01, 0x02, 0x03]));
+        assert!(expr.matches("", &[0x01, 0x0D, 0x0A, 0x02], None));
+        assert!(!expr.matches("", &[0x01, 0x02, 0x03], None));
     }
 
     #[test]
@@ -448,5 +523,74 @@ mod tests {
         assert!(!contains_bytes(&[1, 2, 3], &[2, 4]));
         assert!(!contains_bytes(&[1], &[1, 2]));
         assert!(!contains_bytes(&[1, 2], &[]));
+    }
+
+    // --- @IDLE 検索 ---
+
+    #[test]
+    fn idle_any_matches_with_preceding_idle() {
+        let expr = parse_query("@IDLE").unwrap();
+        assert!(expr.matches("", &[], Some(100.0)));
+        assert!(!expr.matches("", &[], None));
+    }
+
+    #[test]
+    fn idle_gt_condition() {
+        let expr = parse_query("@IDLE>100").unwrap();
+        assert!(expr.matches("", &[], Some(200.0)));
+        assert!(!expr.matches("", &[], Some(100.0)));
+        assert!(!expr.matches("", &[], None));
+    }
+
+    #[test]
+    fn idle_and_text_combined() {
+        // @IDLE>50 AND MsgA → IDLE>50ms かつテキストに "msga" を含む
+        let expr = parse_query("@IDLE>50 MsgA").unwrap();
+        assert!(expr.matches("msga field:1", &[], Some(100.0)));
+        assert!(!expr.matches("msga field:1", &[], Some(30.0)));
+        assert!(!expr.matches("msgb field:1", &[], Some(100.0)));
+    }
+
+    #[test]
+    fn idle_or_text() {
+        let expr = parse_query("@IDLE OR error").unwrap();
+        assert!(expr.matches("", &[], Some(10.0)));
+        assert!(expr.matches("error msg", &[], None));
+        assert!(!expr.matches("ok msg", &[], None));
+    }
+
+    #[test]
+    fn at_sign_non_idle_is_literal() {
+        // @abc は IDLE ではなくリテラル検索
+        let expr = parse_query("@abc").unwrap();
+        assert!(expr.matches("@abc", &[], None));
+        assert!(!expr.matches("abc", &[], None));
+    }
+
+    #[test]
+    fn idle_range_condition() {
+        let expr = parse_query("@IDLE100-500").unwrap();
+        assert!(expr.matches("", &[], Some(100.0)));
+        assert!(expr.matches("", &[], Some(300.0)));
+        assert!(expr.matches("", &[], Some(500.0)));
+        assert!(!expr.matches("", &[], Some(99.0)));
+        assert!(!expr.matches("", &[], Some(501.0)));
+    }
+
+    #[test]
+    fn idle_in_quotes_is_literal() {
+        // クォート内の @IDLE はリテラルテキスト扱い
+        let expr = parse_query("\"@IDLE\"").unwrap();
+        assert!(expr.matches("@idle", &[], None));
+        assert!(!expr.matches("idle", &[], None));
+    }
+
+    #[test]
+    fn idle_case_insensitive_in_protocol() {
+        let expr = parse_query("@idle").unwrap();
+        assert!(expr.matches("", &[], Some(10.0)));
+        let expr2 = parse_query("@Idle>=50").unwrap();
+        assert!(expr2.matches("", &[], Some(50.0)));
+        assert!(!expr2.matches("", &[], Some(49.0)));
     }
 }

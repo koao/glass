@@ -778,6 +778,7 @@ impl eframe::App for GlassApp {
                 &self.protocol_state.matches,
                 self.loaded_protocol.as_ref(),
                 &self.ui_state.protocol_hidden_ids,
+                self.ui_state.protocol_show_idle,
             );
         }
 

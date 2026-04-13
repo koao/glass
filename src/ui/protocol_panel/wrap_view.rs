@@ -83,6 +83,27 @@ fn paint_wrap_slots(
                 }
             }
             WrapSlotKind::Idle(idle_ms) => {
+                let next_msg_id = slots[i + 1..].iter().find_map(|s| {
+                    if let WrapSlotKind::Message { id, .. } = &s.kind {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(nid) = next_msg_id
+                    && let Some(is_current) = app.protocol_search.idle_highlight(nid)
+                {
+                    let bg = if is_current {
+                        theme::PROTO_SEARCH_CURRENT_BG
+                    } else {
+                        theme::PROTO_SEARCH_HIGHLIGHT_BG
+                    };
+                    let slot_rect = Rect::from_min_size(
+                        egui::pos2(slot_x, row_rect.min.y),
+                        Vec2::new(slot.width, row_h),
+                    );
+                    painter.rect_filled(slot_rect, 4.0, bg);
+                }
                 paint_idle_text(painter, *idle_ms, slot_x, center_y);
                 if is_idle_selected(app, slots, i) {
                     let slot_rect = Rect::from_min_size(
@@ -172,9 +193,9 @@ fn paint_inline_message(
         egui::pos2(x + pill_margin, center_y - row_h / 2.0 + pill_margin),
         Vec2::new(width - pill_margin * 2.0, row_h - pill_margin * 2.0),
     );
-    let (stroke_width, stroke_color) = if app.protocol_search.is_current_hit(match_id) {
+    let (stroke_width, stroke_color) = if app.protocol_search.is_message_current_hit(match_id) {
         (2.0, theme::PROTO_SEARCH_CURRENT_BORDER)
-    } else if app.protocol_search.is_hit(match_id) {
+    } else if app.protocol_search.is_message_hit(match_id) {
         (2.0, theme::PROTO_SEARCH_HIGHLIGHT_BORDER)
     } else {
         (1.0, theme::WRAP_PILL_BORDER)

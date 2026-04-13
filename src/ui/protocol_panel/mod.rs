@@ -369,6 +369,7 @@ fn draw_protocol_search_bar(ui: &mut Ui, app: &mut GlassApp) {
                     &app.protocol_state.matches,
                     app.loaded_protocol.as_ref(),
                     &app.ui_state.protocol_hidden_ids,
+                    app.ui_state.protocol_show_idle,
                 );
             } else if prev_clicked {
                 app.protocol_search.prev();
@@ -436,6 +437,10 @@ fn draw_protocol_search_help(ui: &mut Ui, app: &mut GlassApp) {
                     ui.monospace("\"A B\"");
                     ui.label(app.t.protocol_search_help_quote);
                     ui.end_row();
+
+                    ui.monospace("@IDLE");
+                    ui.label(app.t.protocol_search_help_idle);
+                    ui.end_row();
                 });
 
             ui.add_space(6.0);
@@ -462,6 +467,10 @@ fn draw_protocol_search_help(ui: &mut Ui, app: &mut GlassApp) {
 
                     ui.monospace("$02$03");
                     ui.label("→ HEX bytes");
+                    ui.end_row();
+
+                    ui.monospace("@IDLE>100");
+                    ui.label("→ IDLE > 100ms");
                     ui.end_row();
                 });
         });
