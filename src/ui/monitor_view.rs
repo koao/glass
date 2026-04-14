@@ -23,12 +23,12 @@ const CONTROL_CODES: [&str; 33] = [
     "FS", "GS", "RS", "US", "SP", // 0x20 スペース
 ];
 
-/// セル寸法を計算
-fn calc_layout(ui: &Ui) -> (f32, f32, usize) {
+/// セル寸法を計算（キャッシュでレイアウトジッター防止）
+fn calc_layout(ui: &Ui, cached_width: &mut f32, cached_cols: &mut usize) -> (f32, f32, usize) {
     let char_w = MAIN_FONT_SIZE * 0.6;
     let cell_w = char_w + 6.0;
     let cell_h = MAIN_FONT_SIZE * 1.8;
-    let cols = (ui.available_width() / cell_w).floor().max(1.0) as usize;
+    let cols = super::stable_count(ui.available_width(), cell_w, cached_width, cached_cols);
     (cell_w, cell_h, cols)
 }
 
@@ -213,7 +213,11 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
             .sync_entries(app.buffer.entries(), app.idle_threshold_ms);
     }
 
-    let (cell_w, cell_h, cols) = calc_layout(ui);
+    let (cell_w, cell_h, cols) = calc_layout(
+        ui,
+        &mut app.ui_state.monitor_cached_width,
+        &mut app.ui_state.monitor_cached_cols,
+    );
 
     // 検索ハイライトがある場合は再描画（点滅アニメーション用、30fps制限）
     if app.search.has_highlights() {
@@ -234,7 +238,12 @@ pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
 /// 取得中: 1画面リングバッファ上書き表示
 fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, cols: usize) {
     let available = ui.available_size();
-    let rows = (available.y / cell_h).floor().max(1.0) as usize;
+    let rows = super::stable_count(
+        available.y,
+        cell_h,
+        &mut app.ui_state.monitor_cached_height,
+        &mut app.ui_state.monitor_cached_rows,
+    );
     let total_cells = cols * rows;
 
     // Paused時はクリック&ドラッグ可、Running時はhoverのみ

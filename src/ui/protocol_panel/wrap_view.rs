@@ -297,17 +297,24 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
     let row_h = ROW_HEIGHT;
     let available_width = ui.available_width();
     let available_height = ui.available_height();
-    let max_rows = (available_height / row_h).floor().max(1.0) as usize;
+
+    let prev_max_rows = app.ui_state.wrap.max_rows;
+    let max_rows = crate::ui::stable_count(
+        available_height,
+        row_h,
+        &mut app.ui_state.wrap.available_height,
+        &mut app.ui_state.wrap.max_rows,
+    );
 
     let filter_hash = compute_filter_hash(app);
-    let wrap = &app.ui_state.wrap;
-    if max_rows != wrap.max_rows
-        || (available_width - wrap.available_width).abs() > 1.0
-        || filter_hash != wrap.filter_hash
+    if max_rows != prev_max_rows
+        || (available_width - app.ui_state.wrap.available_width).abs() > 1.0
+        || filter_hash != app.ui_state.wrap.filter_hash
     {
         app.ui_state.wrap.reset();
         app.ui_state.wrap.max_rows = max_rows;
         app.ui_state.wrap.available_width = available_width;
+        app.ui_state.wrap.available_height = available_height;
         app.ui_state.wrap.filter_hash = filter_hash;
     }
 
@@ -317,11 +324,8 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
 
     let total_matches = app.protocol_state.matches.len();
     if total_matches < app.ui_state.wrap.rendered_count {
-        app.ui_state.wrap.reset();
-        app.ui_state.wrap.max_rows = max_rows;
-        app.ui_state.wrap.available_width = available_width;
-        app.ui_state.wrap.filter_hash = filter_hash;
-        app.ui_state.wrap.slots.resize(max_rows, Vec::new());
+        // trim 発生: position_by_id でスロットの idx を再マッピング
+        app.ui_state.wrap.adjust_for_trim(&app.protocol_state);
     }
 
     let proto = app.loaded_protocol.as_ref().unwrap();

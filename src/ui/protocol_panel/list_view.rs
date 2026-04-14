@@ -34,7 +34,12 @@ pub(super) fn draw_match_list(
 
     let (draw_first, draw_last, total_height);
     if latest_only {
-        let max_rows = (available_height / row_h).floor() as usize;
+        let max_rows = crate::ui::stable_count(
+            available_height,
+            row_h,
+            &mut app.ui_state.list_cached_height,
+            &mut app.ui_state.list_cached_max_rows,
+        );
         let display_rows = max_rows.min(total_rows);
         draw_first = total_rows - display_rows;
         draw_last = total_rows;

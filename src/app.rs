@@ -92,6 +92,8 @@ pub struct WrapViewState {
     pub max_rows: usize,
     /// 画面幅（前回）
     pub available_width: f32,
+    /// 画面高さ（前回、ジッター防止用）
+    pub available_height: f32,
     /// フィルタ状態のハッシュ（変更検知用）
     pub filter_hash: u64,
     /// 停止時のレイアウトキャッシュ
@@ -113,12 +115,35 @@ impl WrapViewState {
             current_x: 0.0,
             max_rows: 0,
             available_width: 0.0,
+            available_height: 0.0,
             filter_hash: 0,
             stopped_lines: Vec::new(),
             stopped_match_count: 0,
             stopped_filter_hash: 0,
             stopped_width: 0.0,
         }
+    }
+
+    /// trim 発生時にスロットの idx を position_by_id で再マッピングする（全 reset を回避）
+    pub fn adjust_for_trim(&mut self, state: &crate::protocol::engine::ProtocolState) {
+        let mut max_idx: Option<usize> = None;
+        for row in &mut self.slots {
+            row.retain_mut(|slot| {
+                if let WrapSlotKind::Message { idx, id } = &mut slot.kind {
+                    match state.position_by_id(*id) {
+                        Some(new_idx) => {
+                            *idx = new_idx;
+                            max_idx = Some(max_idx.map_or(new_idx, |m: usize| m.max(new_idx)));
+                        }
+                        None => return false,
+                    }
+                }
+                true
+            });
+        }
+        // スロットに存在する最大 idx + 1 を rendered_count とし、
+        // trim と同一フレームで追加された新規メッセージも次の差分ループで処理される
+        self.rendered_count = max_idx.map_or(0, |m| m + 1);
     }
 
     /// ラップ状態を全リセット
@@ -129,6 +154,7 @@ impl WrapViewState {
         self.current_x = 0.0;
         self.max_rows = 0;
         self.available_width = 0.0;
+        self.available_height = 0.0;
         self.filter_hash = 0;
         self.stopped_lines.clear();
         self.stopped_match_count = 0;
@@ -206,6 +232,14 @@ pub struct UiState {
     pub show_protocol_search_help: bool,
     /// アクティブなダイアログ（Noneなら非表示）
     pub dialog: Option<DialogKind>,
+    /// モニタビューのキャッシュされた列数・行数（レイアウトジッター防止）
+    pub monitor_cached_cols: usize,
+    pub monitor_cached_width: f32,
+    pub monitor_cached_rows: usize,
+    pub monitor_cached_height: f32,
+    /// プロトコルリストビュー(latest_only)のキャッシュされた行数
+    pub list_cached_max_rows: usize,
+    pub list_cached_height: f32,
     /// モニタビューの選択状態
     pub monitor_selection: Selection,
     /// プロトコルパネルの選択状態（match ID ベース）
@@ -347,6 +381,12 @@ impl GlassApp {
                 show_protocol_search_bar: settings.show_protocol_search_bar,
                 show_protocol_search_help: false,
                 dialog: None,
+                monitor_cached_cols: 0,
+                monitor_cached_width: 0.0,
+                monitor_cached_rows: 0,
+                monitor_cached_height: 0.0,
+                list_cached_max_rows: 0,
+                list_cached_height: 0.0,
                 monitor_selection: Selection::new(),
                 protocol_selection: IdSelection::new(),
                 sequence_diagram: ui::sequence_diagram::SequenceDiagramState::new(),
