@@ -64,25 +64,32 @@ fn draw_row_lines(
     }
 }
 
-/// リングバッファのセルインデックス→表示バッファインデックス変換
-fn map_cell_to_entry(cell_idx: usize, buf_len: usize, total_cells: usize) -> Option<usize> {
-    if buf_len == 0 || total_cells == 0 {
+/// リングバッファのセルインデックス→表示バッファインデックス変換。
+/// `total_written` は累計書き込みセル数（単調増加）、`cells_offset` は trim で drain された累計数。
+fn map_cell_to_entry(
+    cell_idx: usize,
+    total_written: usize,
+    cells_offset: usize,
+    total_cells: usize,
+) -> Option<usize> {
+    if total_written == 0 || total_cells == 0 {
         return None;
     }
-    if buf_len <= total_cells {
-        if cell_idx < buf_len {
-            Some(cell_idx)
+    let logical = if total_written <= total_cells {
+        if cell_idx < total_written {
+            cell_idx
         } else {
-            None
+            return None;
         }
     } else {
-        let write_pos = buf_len % total_cells;
+        let write_pos = total_written % total_cells;
         if cell_idx < write_pos {
-            Some(buf_len - write_pos + cell_idx)
+            total_written - write_pos + cell_idx
         } else {
-            Some(buf_len - total_cells + (cell_idx - write_pos))
+            total_written - total_cells + (cell_idx - write_pos)
         }
-    }
+    };
+    logical.checked_sub(cells_offset)
 }
 
 /// 検索ハイライトの背景色を取得（点滅アニメーション付き）
@@ -209,8 +216,11 @@ fn draw_context_menu(response: &egui::Response, _ui: &mut Ui, app: &mut GlassApp
 /// メインモニタビュー描画
 pub fn draw(ui: &mut Ui, app: &mut GlassApp) {
     if app.state != MonitorState::Paused {
-        app.display_buffer
-            .sync_entries(app.buffer.entries(), app.idle_threshold_ms);
+        app.display_buffer.sync_entries(
+            app.buffer.entries(),
+            app.idle_threshold_ms,
+            app.buffer.trimmed_total(),
+        );
     }
 
     let (cell_w, cell_h, cols) = calc_layout(
@@ -259,7 +269,8 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
     painter.rect_filled(rect, 0.0, theme::GRID_BG);
     draw_row_lines(&painter, rect, cols, rows, cell_w, cell_h);
 
-    let buf_len = app.display_buffer.len();
+    let total_written = app.display_buffer.total_written();
+    let cells_offset = app.display_buffer.cells_offset();
     let time = ui.input(|i| i.time);
 
     // Running時は選択をクリア
@@ -269,7 +280,8 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
 
     // Paused時: 選択処理
     if app.state == MonitorState::Paused {
-        let bl = buf_len;
+        let tw = total_written;
+        let co = cells_offset;
         let tc = total_cells;
         handle_selection_input(
             ui,
@@ -280,13 +292,15 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
             cell_w,
             cell_h,
             total_cells,
-            |cell_idx| map_cell_to_entry(cell_idx, bl, tc),
+            |cell_idx| map_cell_to_entry(cell_idx, tw, co, tc),
         );
         draw_context_menu(&response, ui, app);
     }
 
     for cell_idx in 0..total_cells {
-        if let Some(disp_idx) = map_cell_to_entry(cell_idx, buf_len, total_cells) {
+        if let Some(disp_idx) =
+            map_cell_to_entry(cell_idx, total_written, cells_offset, total_cells)
+        {
             let cell = &app.display_buffer.cells()[disp_idx];
             let cr = cell_rect(rect, cell_idx, cols, cell_w, cell_h);
 
@@ -316,7 +330,7 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
     }
 
     // ライブIDLEカウンタ (Running時のみ)
-    let mut cursor_pos = buf_len % total_cells;
+    let mut cursor_pos = total_written % total_cells;
     if app.state == MonitorState::Running
         && let Some(last_time) = app.last_byte_time
     {
@@ -327,16 +341,16 @@ fn draw_ring_buffer(ui: &mut Ui, app: &mut GlassApp, cell_w: f32, cell_h: f32, c
             let count = (elapsed_ms / threshold).min(9999);
             let live_text = format!("{:04}", count);
             for (i, ch) in live_text.chars().enumerate() {
-                let idx = (buf_len + i) % total_cells;
+                let idx = (total_written + i) % total_cells;
                 let cr = cell_rect(rect, idx, cols, cell_w, cell_h);
                 draw_idle_char(&painter, cr, ch, &app.monitor_colors, None);
             }
-            cursor_pos = (buf_len + live_text.len()) % total_cells;
+            cursor_pos = (total_written + live_text.len()) % total_cells;
         }
     }
 
     // カーソル（書き込み位置）
-    if buf_len > 0 || app.last_byte_time.is_some() {
+    if total_written > 0 || app.last_byte_time.is_some() {
         let cr = cell_rect(rect, cursor_pos, cols, cell_w, cell_h);
         painter.rect_filled(cr, 0.0, theme::CURSOR_FILL);
         painter.rect_stroke(

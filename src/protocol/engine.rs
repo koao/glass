@@ -131,6 +131,8 @@ pub struct ProtocolState {
     next_match_id: u64,
     /// matches[0] の ID（trim 後の O(1) インデックス解決用）
     first_id: u64,
+    /// MonitorBuffer から同期済みの累積 trim 数（MonitorBuffer の trim に追随するため）
+    seen_trimmed: usize,
 }
 
 impl ProtocolState {
@@ -145,6 +147,7 @@ impl ProtocolState {
             error_idle_ms: None,
             next_match_id: 0,
             first_id: 0,
+            seen_trimmed: 0,
         }
     }
 
@@ -158,9 +161,22 @@ impl ProtocolState {
         }
     }
 
-    pub fn sync_entries(&mut self, entries: &[DataEntry], engine: &ProtocolEngine) {
-        if self.processed_count > entries.len() {
+    pub fn sync_entries(
+        &mut self,
+        entries: &[DataEntry],
+        engine: &ProtocolEngine,
+        trimmed_total: usize,
+    ) {
+        // MonitorBuffer が trim で縮んだ分、processed_count を前方へシフト（clear は回避）
+        let trim_delta = trimmed_total.saturating_sub(self.seen_trimmed);
+        if trim_delta > 0 {
+            self.processed_count = self.processed_count.saturating_sub(trim_delta);
+            self.seen_trimmed = trimmed_total;
+        }
+        // 完全リセット検出（ファイル読み込みなど）
+        if self.processed_count > entries.len() || trimmed_total < self.seen_trimmed {
             self.clear();
+            self.seen_trimmed = trimmed_total;
         }
 
         for entry in entries.iter().skip(self.processed_count) {
@@ -352,6 +368,7 @@ impl ProtocolState {
         self.error_idle_ms = None;
         self.next_match_id = 0;
         self.first_id = 0;
+        self.seen_trimmed = 0;
     }
 }
 
@@ -387,13 +404,13 @@ mod tests {
         for b in bytes {
             buf.push(DataEntry::Byte(*b, t()));
         }
-        state.sync_entries(buf, engine);
+        state.sync_entries(buf, engine, 0);
     }
 
     /// 一発で全バイトを供給するショートカット
     fn feed_all(state: &mut ProtocolState, engine: &ProtocolEngine, bytes: &[u8]) {
         let entries: Vec<DataEntry> = bytes.iter().map(|b| DataEntry::Byte(*b, t())).collect();
-        state.sync_entries(&entries, engine);
+        state.sync_entries(&entries, engine, 0);
     }
 
     fn engine_fixed_len_4() -> ProtocolEngine {
@@ -543,7 +560,7 @@ max_length = 5
             DataEntry::Byte(0xEE, t()),
             DataEntry::Idle(10.0),
         ];
-        state.sync_entries(&entries, &engine);
+        state.sync_entries(&entries, &engine, 0);
         assert_eq!(state.matches.len(), 1);
         assert_eq!(state.matches[0].message_def_idx, None);
         assert_eq!(state.matches[0].frame.bytes, vec![0xFF, 0xEE]);
@@ -561,7 +578,7 @@ max_length = 5
             DataEntry::Byte(0x02, t()),
             DataEntry::Byte(0x03, t()),
         ];
-        state.sync_entries(&entries, &engine);
+        state.sync_entries(&entries, &engine, 0);
         assert_eq!(state.matches.len(), 1);
         assert_eq!(state.matches[0].preceding_idle_ms, Some(3.5));
     }
@@ -579,7 +596,7 @@ max_length = 5
             DataEntry::Byte(0x02, t()),
             DataEntry::Byte(0x03, t()),
         ];
-        state.sync_entries(&entries, &engine);
+        state.sync_entries(&entries, &engine, 0);
         assert_eq!(state.matches.len(), 2);
         assert_eq!(state.matches[0].preceding_idle_ms, Some(2.0));
         assert_eq!(
@@ -602,7 +619,7 @@ max_length = 5
             DataEntry::Byte(0x02, t()),
             DataEntry::Byte(0x03, t()),
         ];
-        state.sync_entries(&entries, &engine);
+        state.sync_entries(&entries, &engine, 0);
         assert_eq!(state.matches.len(), 2);
         assert_eq!(state.matches[0].frame.bytes, vec![0x02, 0xAA]);
         assert_eq!(state.matches[1].frame.bytes, vec![0x02, 0x01, 0x02, 0x03]);
@@ -616,8 +633,8 @@ max_length = 5
             .iter()
             .map(|b| DataEntry::Byte(*b, t()))
             .collect();
-        state.sync_entries(&entries, &engine);
-        state.sync_entries(&entries, &engine);
+        state.sync_entries(&entries, &engine, 0);
+        state.sync_entries(&entries, &engine, 0);
         assert_eq!(state.matches.len(), 1, "同じ入力を再評価しても重複しない");
     }
 
@@ -626,9 +643,9 @@ max_length = 5
         let engine = engine_fixed_len_4();
         let mut state = ProtocolState::new();
         let big: Vec<DataEntry> = (0..4).map(|_| DataEntry::Byte(0x02, t())).collect();
-        state.sync_entries(&big, &engine);
+        state.sync_entries(&big, &engine, 0);
         let small: Vec<DataEntry> = vec![DataEntry::Byte(0x02, t())];
-        state.sync_entries(&small, &engine);
+        state.sync_entries(&small, &engine, 0);
         // clear されてから 1 バイトだけ処理 → length=4 待ちで未確定
         assert_eq!(state.matches.len(), 0);
         assert_eq!(state.processed_count, 1);

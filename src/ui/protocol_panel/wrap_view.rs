@@ -68,18 +68,30 @@ fn paint_wrap_slots(
     for (i, slot) in slots.iter().enumerate() {
         let slot_x = rect_min_x + slot.x;
         match &slot.kind {
-            WrapSlotKind::Message { idx, id } => {
-                if *idx < app.protocol_state.matches.len()
-                    && app.protocol_state.matches[*idx].id == *id
-                {
-                    paint_inline_message(painter, app, *idx, slot_x, center_y, slot.width, row_h);
-                    if app.ui_state.protocol_selection.contains(*id) {
-                        let slot_rect = Rect::from_min_size(
-                            egui::pos2(slot_x, row_rect.min.y),
-                            Vec2::new(slot.width, row_h),
-                        );
-                        painter.rect_filled(slot_rect, 4.0, theme::SELECTION_BG);
-                    }
+            WrapSlotKind::Message {
+                id,
+                message_def_idx,
+                frame_bytes,
+                checksum,
+            } => {
+                paint_inline_message(
+                    painter,
+                    app,
+                    *id,
+                    *message_def_idx,
+                    frame_bytes,
+                    *checksum,
+                    slot_x,
+                    center_y,
+                    slot.width,
+                    row_h,
+                );
+                if app.ui_state.protocol_selection.contains(*id) {
+                    let slot_rect = Rect::from_min_size(
+                        egui::pos2(slot_x, row_rect.min.y),
+                        Vec2::new(slot.width, row_h),
+                    );
+                    painter.rect_filled(slot_rect, 4.0, theme::SELECTION_BG);
                 }
             }
             WrapSlotKind::Idle(idle_ms) => {
@@ -169,11 +181,15 @@ fn measure_idle_width(painter: &egui::Painter, idle_ms: f64) -> f32 {
         + 16.0
 }
 
-/// インラインメッセージを描画（ピル背景付き）
+/// インラインメッセージを描画（ピル背景付き）。スロットの自己完結データから描画する。
+#[allow(clippy::too_many_arguments)]
 fn paint_inline_message(
     painter: &egui::Painter,
     app: &GlassApp,
-    match_idx: usize,
+    match_id: u64,
+    message_def_idx: Option<usize>,
+    frame_bytes: &[u8],
+    checksum: Option<crate::protocol::checksum::ChecksumStatus>,
     x: f32,
     center_y: f32,
     width: f32,
@@ -183,10 +199,6 @@ fn paint_inline_message(
         Some(p) => p,
         None => return,
     };
-    if match_idx >= app.protocol_state.matches.len() {
-        return;
-    }
-    let match_id = app.protocol_state.matches[match_idx].id;
 
     let pill_margin = 2.0;
     let pill_rect = Rect::from_min_size(
@@ -208,13 +220,12 @@ fn paint_inline_message(
         egui::StrokeKind::Inside,
     );
 
-    let matched = &app.protocol_state.matches[match_idx];
     let font = FONT();
     let mono_font = MONO_FONT();
     let mut cur_x = x + 8.0;
 
-    match matched.message_def_idx {
-        Some(def_idx) => {
+    match message_def_idx {
+        Some(def_idx) if def_idx < proto.messages.len() => {
             let msg_def = &proto.messages[def_idx];
             let title_color = msg_def.parsed_color.unwrap_or(egui::Color32::WHITE);
             let g = painter.layout_no_wrap(msg_def.title.clone(), font.clone(), title_color);
@@ -225,15 +236,10 @@ fn paint_inline_message(
                 title_color,
             );
             cur_x += w + 8.0;
-            cur_x += super::paint_checksum_ng_badge(
-                painter,
-                font.clone(),
-                cur_x,
-                center_y,
-                matched.checksum,
-            );
+            cur_x +=
+                super::paint_checksum_ng_badge(painter, font.clone(), cur_x, center_y, checksum);
             for field in msg_def.fields.iter().filter(|f| f.inline) {
-                let ascii = extract_ascii(&matched.frame.bytes, field.offset, field.size);
+                let ascii = extract_ascii(frame_bytes, field.offset, field.size);
                 let text = format!("{}:{}", field.name, ascii);
                 let g = painter.layout_no_wrap(text, mono_font.clone(), theme::TEXT_MUTED);
                 let w = g.rect.width();
@@ -245,7 +251,7 @@ fn paint_inline_message(
                 cur_x += w + 8.0;
             }
         }
-        None => {
+        _ => {
             let text = format!("{} {}", regular::QUESTION, app.t.protocol_unmatched);
             let g = painter.layout_no_wrap(text, font.clone(), theme::PROTOCOL_UNMATCHED);
             painter.galley(
@@ -323,16 +329,22 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
     }
 
     let total_matches = app.protocol_state.matches.len();
-    if total_matches < app.ui_state.wrap.rendered_count {
-        // trim 発生: position_by_id でスロットの idx を再マッピング
-        app.ui_state.wrap.adjust_for_trim(&app.protocol_state);
-    }
+
+    // 前回描画済み id より後から処理開始（trim されていても position_by_id で正しく解決される）
+    let start = match app.ui_state.wrap.last_rendered_id {
+        Some(id) => match app.protocol_state.position_by_id(id) {
+            Some(pos) => pos + 1,
+            None => 0, // 前回描画した id が trim で消えた（通常は起きない）
+        },
+        None => 0,
+    };
 
     let proto = app.loaded_protocol.as_ref().unwrap();
     let show_idle = app.ui_state.protocol_show_idle;
-    let start = app.ui_state.wrap.rendered_count;
+    let mut new_last_id = app.ui_state.wrap.last_rendered_id;
     for i in start..total_matches {
         let matched = &app.protocol_state.matches[i];
+        new_last_id = Some(matched.id);
         if let Some(def_idx) = matched.message_def_idx
             && app
                 .ui_state
@@ -354,16 +366,20 @@ pub(super) fn draw_wrap_view(ui: &mut Ui, app: &mut GlassApp) {
         }
 
         let msg_width = measure_message_width(ui, app, i);
-        let mid = app.protocol_state.matches[i].id;
         wrap_push_slot(
             &mut app.ui_state.wrap,
             max_rows,
             available_width,
-            WrapSlotKind::Message { idx: i, id: mid },
+            WrapSlotKind::Message {
+                id: matched.id,
+                message_def_idx: matched.message_def_idx,
+                frame_bytes: std::sync::Arc::from(matched.frame.bytes.as_slice()),
+                checksum: matched.checksum,
+            },
             msg_width,
         );
     }
-    app.ui_state.wrap.rendered_count = total_matches;
+    app.ui_state.wrap.last_rendered_id = new_last_id;
 
     let is_paused = app.state == MonitorState::Paused;
     let total_height = max_rows as f32 * row_h;
@@ -746,9 +762,13 @@ fn build_stopped_layout(ui: &Ui, app: &mut GlassApp, available_width: f32) {
             lines.push(std::mem::take(&mut current_line));
             current_x = 0.0;
         }
-        let mid = app.protocol_state.matches[i].id;
         current_line.push(WrapSlot {
-            kind: WrapSlotKind::Message { idx: i, id: mid },
+            kind: WrapSlotKind::Message {
+                id: matched.id,
+                message_def_idx: matched.message_def_idx,
+                frame_bytes: std::sync::Arc::from(matched.frame.bytes.as_slice()),
+                checksum: matched.checksum,
+            },
             x: current_x,
             width: msg_width,
         });

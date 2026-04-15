@@ -702,8 +702,11 @@ fn load_selected_protocol(app: &mut GlassApp, idx: usize) {
             Ok(proto) => {
                 let engine = ProtocolEngine::new(&proto);
                 app.protocol_state.clear();
-                app.protocol_state
-                    .sync_entries(app.buffer.entries(), &engine);
+                app.protocol_state.sync_entries(
+                    app.buffer.entries(),
+                    &engine,
+                    app.buffer.trimmed_total(),
+                );
                 app.protocol_state.flush(&engine);
                 app.protocol_engine = Some(engine);
                 app.loaded_protocol = Some(proto);

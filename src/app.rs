@@ -61,11 +61,18 @@ pub enum ProtocolViewMode {
     Wrap,
 }
 
-/// ラップ表示のスロット種別
+/// ラップ表示のスロット種別。メッセージ描画に必要なデータを自己完結的に保持し、
+/// matches[] 配列の trim による idx のずれに依存しないようにする。
+/// `frame_bytes` は `Arc<[u8]>` で共有し、`Vec<WrapSlot>` のクローンが深いコピーにならないようにする。
 #[derive(Clone, Debug)]
 pub enum WrapSlotKind {
-    /// メッセージ（matchesインデックス＋match ID）
-    Message { idx: usize, id: u64 },
+    /// メッセージ（描画に必要な情報を全て含む）
+    Message {
+        id: u64,
+        message_def_idx: Option<usize>,
+        frame_bytes: std::sync::Arc<[u8]>,
+        checksum: Option<crate::protocol::checksum::ChecksumStatus>,
+    },
     /// IDLE（時間ms）
     Idle(f64),
 }
@@ -82,8 +89,8 @@ pub struct WrapSlot {
 pub struct WrapViewState {
     /// 書き込み行位置
     pub cursor: usize,
-    /// 描画済みmatches数（差分検知用）
-    pub rendered_count: usize,
+    /// 最後に描画した match の ID（trim に強い差分検知用）
+    pub last_rendered_id: Option<u64>,
     /// 行ごとのスロット配列
     pub slots: Vec<Vec<WrapSlot>>,
     /// 現在行の使用幅
@@ -110,7 +117,7 @@ impl WrapViewState {
     pub fn new() -> Self {
         Self {
             cursor: 0,
-            rendered_count: 0,
+            last_rendered_id: None,
             slots: Vec::new(),
             current_x: 0.0,
             max_rows: 0,
@@ -124,32 +131,10 @@ impl WrapViewState {
         }
     }
 
-    /// trim 発生時にスロットの idx を position_by_id で再マッピングする（全 reset を回避）
-    pub fn adjust_for_trim(&mut self, state: &crate::protocol::engine::ProtocolState) {
-        let mut max_idx: Option<usize> = None;
-        for row in &mut self.slots {
-            row.retain_mut(|slot| {
-                if let WrapSlotKind::Message { idx, id } = &mut slot.kind {
-                    match state.position_by_id(*id) {
-                        Some(new_idx) => {
-                            *idx = new_idx;
-                            max_idx = Some(max_idx.map_or(new_idx, |m: usize| m.max(new_idx)));
-                        }
-                        None => return false,
-                    }
-                }
-                true
-            });
-        }
-        // スロットに存在する最大 idx + 1 を rendered_count とし、
-        // trim と同一フレームで追加された新規メッセージも次の差分ループで処理される
-        self.rendered_count = max_idx.map_or(0, |m| m + 1);
-    }
-
     /// ラップ状態を全リセット
     pub fn reset(&mut self) {
         self.cursor = 0;
-        self.rendered_count = 0;
+        self.last_rendered_id = None;
         self.slots.clear();
         self.current_x = 0.0;
         self.max_rows = 0;
@@ -522,11 +507,12 @@ impl GlassApp {
 
     /// display_buffer と protocol_state を現在の生バッファに同期
     fn sync_views_to_buffer(&mut self) {
+        let trimmed = self.buffer.trimmed_total();
         self.display_buffer
-            .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
+            .sync_entries(self.buffer.entries(), self.idle_threshold_ms, trimmed);
         if let Some(engine) = &self.protocol_engine {
             self.protocol_state
-                .sync_entries(self.buffer.entries(), engine);
+                .sync_entries(self.buffer.entries(), engine, trimmed);
         }
     }
 
@@ -678,12 +664,18 @@ impl GlassApp {
                     Ok(glass_file) => {
                         let entries = glass_file.to_entries();
                         self.buffer.load_entries(entries);
-                        self.display_buffer
-                            .sync_entries(self.buffer.entries(), self.idle_threshold_ms);
+                        self.display_buffer.sync_entries(
+                            self.buffer.entries(),
+                            self.idle_threshold_ms,
+                            self.buffer.trimmed_total(),
+                        );
                         self.protocol_state.clear();
                         if let Some(engine) = &self.protocol_engine {
-                            self.protocol_state
-                                .sync_entries(self.buffer.entries(), engine);
+                            self.protocol_state.sync_entries(
+                                self.buffer.entries(),
+                                engine,
+                                self.buffer.trimmed_total(),
+                            );
                             self.protocol_state.flush(engine);
                         }
                         self.search = SearchState::new();
@@ -804,8 +796,11 @@ impl eframe::App for GlassApp {
         if self.state != MonitorState::Paused
             && let Some(engine) = &self.protocol_engine
         {
-            self.protocol_state
-                .sync_entries(self.buffer.entries(), engine);
+            self.protocol_state.sync_entries(
+                self.buffer.entries(),
+                engine,
+                self.buffer.trimmed_total(),
+            );
         }
 
         // 受信中の検索自動更新
