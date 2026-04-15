@@ -271,8 +271,10 @@ pub struct GlassApp {
 
 impl GlassApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // ダークテーマ適用
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        // ダークテーマ固定（OS のテーマ設定に追従させない）
+        cc.egui_ctx.options_mut(|opt| {
+            opt.theme_preference = egui::ThemePreference::Dark;
+        });
 
         // 日本語フォント設定
         Self::setup_fonts(&cc.egui_ctx);
