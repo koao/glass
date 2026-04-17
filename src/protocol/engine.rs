@@ -63,7 +63,7 @@ impl ProtocolEngine {
                     }
                 }
                 Err(e) => {
-                    eprintln!("パターンコンパイルエラー [{}]: {}", msg.id, e);
+                    tracing::warn!(id = %msg.id, error = %e, "パターンコンパイルエラー");
                 }
             }
         }

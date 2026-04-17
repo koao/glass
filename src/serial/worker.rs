@@ -28,7 +28,7 @@ pub fn spawn_receiver(
                 sender,
                 stop,
             ) {
-                eprintln!("受信エラー: {}", e);
+                tracing::error!(error = %e, "受信エラー");
             }
         });
         Ok(handle)

@@ -128,28 +128,46 @@ impl Default for AppSettings {
 
 /// 設定ファイルのパスを取得（exe隣のglass_settings.json）
 fn settings_path() -> PathBuf {
-    std::env::current_exe()
-        .unwrap_or_default()
-        .parent()
-        .unwrap_or(std::path::Path::new("."))
-        .join("glass_settings.json")
+    crate::util::exe_dir().join("glass_settings.json")
 }
 
 impl AppSettings {
     /// 設定を読み込み（失敗時はデフォルト値）
     pub fn load() -> Self {
         let path = settings_path();
-        std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        // ファイル未作成（初回起動）は通常の動作としてログを汚さない。parse 失敗は破損の可能性があるので警告する。
+        match std::fs::read_to_string(&path) {
+            Ok(s) => match serde_json::from_str(&s) {
+                Ok(settings) => settings,
+                Err(e) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %e,
+                        "設定ファイルの parse に失敗したためデフォルト値を使用します"
+                    );
+                    Self::default()
+                }
+            },
+            Err(_) => Self::default(),
+        }
     }
 
     /// 設定を保存
     pub fn save(&self) {
         let path = settings_path();
-        if let Ok(json) = serde_json::to_string_pretty(self) {
-            let _ = std::fs::write(&path, json);
+        let json = match serde_json::to_string_pretty(self) {
+            Ok(j) => j,
+            Err(e) => {
+                tracing::error!(error = %e, "設定の serialize に失敗しました");
+                return;
+            }
+        };
+        if let Err(e) = std::fs::write(&path, json) {
+            tracing::error!(
+                path = %path.display(),
+                error = %e,
+                "設定ファイルの書き込みに失敗しました"
+            );
         }
     }
 }

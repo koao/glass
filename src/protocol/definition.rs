@@ -200,9 +200,5 @@ pub fn scan_protocols(dir: &Path) -> Vec<(PathBuf, String)> {
 
 /// protocols/ディレクトリのパスを取得（exe隣）
 pub fn protocols_dir() -> PathBuf {
-    std::env::current_exe()
-        .unwrap_or_default()
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join("protocols")
+    crate::util::exe_dir().join("protocols")
 }

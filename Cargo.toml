@@ -18,6 +18,10 @@ regex = "1"
 toml = "0.8"
 mermaid-rs-renderer = "0.2.1"
 resvg = "0.44"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "std"] }
+tracing-appender = "0.2"
+tracing-log = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52.0", features = [
