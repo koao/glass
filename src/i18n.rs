@@ -136,6 +136,14 @@ pub struct Texts {
     pub protocol_search_help_hex: &'static str,
     pub protocol_search_help_quote: &'static str,
     pub protocol_search_help_idle: &'static str,
+    pub protocol_search_help_unknown: &'static str,
+    pub protocol_search_help_examples_title: &'static str,
+    pub protocol_search_help_ex_and: &'static str,
+    pub protocol_search_help_ex_quoted: &'static str,
+    pub protocol_search_help_ex_or: &'static str,
+    pub protocol_search_help_ex_hex: &'static str,
+    pub protocol_search_help_ex_idle: &'static str,
+    pub protocol_search_help_ex_unknown: &'static str,
 
     // -- コピーメニュー --
     pub copy_mixed: &'static str,
@@ -276,6 +284,14 @@ const JA: Texts = Texts {
     protocol_search_help_hex: "$XX — HEXバイトパターン（例: $02$03）",
     protocol_search_help_quote: "\"...\" — スペースを含む語をまとめる",
     protocol_search_help_idle: "@IDLE — IDLE検索（@IDLE>100, @IDLE100-500）",
+    protocol_search_help_unknown: "@UNKNOWN — プロトコル定義にマッチしないメッセージ",
+    protocol_search_help_examples_title: "例:",
+    protocol_search_help_ex_and: "→ AND (2語)",
+    protocol_search_help_ex_quoted: "→ 1語 (スペース含む)",
+    protocol_search_help_ex_or: "→ OR",
+    protocol_search_help_ex_hex: "→ HEXバイト",
+    protocol_search_help_ex_idle: "→ IDLE > 100ms",
+    protocol_search_help_ex_unknown: "→ 未定義メッセージ",
 
     // コピーメニュー
     copy_mixed: "コピー（ASCII: $05OK）",
@@ -416,6 +432,14 @@ const EN: Texts = Texts {
     protocol_search_help_hex: "$XX — HEX byte pattern (e.g. $02$03)",
     protocol_search_help_quote: "\"...\" — group words with spaces",
     protocol_search_help_idle: "@IDLE — IDLE search (@IDLE>100, @IDLE100-500)",
+    protocol_search_help_unknown: "@UNKNOWN — messages not matching any protocol definition",
+    protocol_search_help_examples_title: "Examples:",
+    protocol_search_help_ex_and: "→ AND (2 terms)",
+    protocol_search_help_ex_quoted: "→ single term (with space)",
+    protocol_search_help_ex_or: "→ OR",
+    protocol_search_help_ex_hex: "→ HEX bytes",
+    protocol_search_help_ex_idle: "→ IDLE > 100ms",
+    protocol_search_help_ex_unknown: "→ undefined messages",
 
     // コピーメニュー
     copy_mixed: "Copy (ASCII: $05OK)",

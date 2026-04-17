@@ -49,7 +49,10 @@ impl IdleCondition {
 /// `@IDLE` で始まらなければ `None`（リテラル扱い）。
 pub(crate) fn parse_idle_condition(input: &str) -> Option<IdleCondition> {
     let trimmed = input.trim();
-    if trimmed.len() < 5 || !trimmed[..5].eq_ignore_ascii_case("@idle") {
+    // `@idle` は ASCII なので `get(..5)` で安全にスライスする。
+    // マルチバイト文字が先頭にある場合は char boundary を割らないよう None になり、そもそも一致しない。
+    let head = trimmed.get(..5)?;
+    if !head.eq_ignore_ascii_case("@idle") {
         return None;
     }
     let rest = &trimmed[5..];
@@ -509,6 +512,15 @@ mod tests {
     #[test]
     fn idle_invalid_suffix_returns_none() {
         assert!(parse_idle_condition("@IDLEabc").is_none());
+    }
+
+    #[test]
+    fn idle_multibyte_does_not_panic() {
+        // 先頭がマルチバイト文字でも byte index で slice せずに None を返す（パニック回帰防止）
+        assert!(parse_idle_condition("しゅ").is_none());
+        assert!(parse_idle_condition("種別").is_none());
+        assert!(parse_idle_condition("あ").is_none());
+        assert!(parse_idle_condition("a種別").is_none());
     }
 
     // --- SearchState IDLE モード ---

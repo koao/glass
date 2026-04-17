@@ -441,36 +441,44 @@ fn draw_protocol_search_help(ui: &mut Ui, app: &mut GlassApp) {
                     ui.monospace("@IDLE");
                     ui.label(app.t.protocol_search_help_idle);
                     ui.end_row();
+
+                    ui.monospace("@UNKNOWN");
+                    ui.label(app.t.protocol_search_help_unknown);
+                    ui.end_row();
                 });
 
             ui.add_space(6.0);
             ui.separator();
             ui.add_space(4.0);
-            ui.colored_label(theme::TEXT_MUTED, "例 / Examples:");
+            ui.colored_label(theme::TEXT_MUTED, app.t.protocol_search_help_examples_title);
             ui.add_space(2.0);
 
             egui::Grid::new("proto_search_help_examples")
                 .num_columns(2)
                 .spacing([12.0, 4.0])
                 .show(ui, |ui| {
-                    ui.monospace("応答 宛先:001");
-                    ui.label("→ AND (2語)");
+                    ui.monospace("Reply Dest:001");
+                    ui.label(app.t.protocol_search_help_ex_and);
                     ui.end_row();
 
-                    ui.monospace("\"宛先:0 1\"");
-                    ui.label("→ 1語 (スペース含む)");
+                    ui.monospace("\"Dest:0 1\"");
+                    ui.label(app.t.protocol_search_help_ex_quoted);
                     ui.end_row();
 
                     ui.monospace("MsgA OR MsgB");
-                    ui.label("→ OR");
+                    ui.label(app.t.protocol_search_help_ex_or);
                     ui.end_row();
 
                     ui.monospace("$02$03");
-                    ui.label("→ HEX bytes");
+                    ui.label(app.t.protocol_search_help_ex_hex);
                     ui.end_row();
 
                     ui.monospace("@IDLE>100");
-                    ui.label("→ IDLE > 100ms");
+                    ui.label(app.t.protocol_search_help_ex_idle);
+                    ui.end_row();
+
+                    ui.monospace("@UNKNOWN");
+                    ui.label(app.t.protocol_search_help_ex_unknown);
                     ui.end_row();
                 });
         });

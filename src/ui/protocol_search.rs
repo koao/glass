@@ -12,6 +12,8 @@ enum SearchExpr {
     Term(String, Option<Vec<u8>>),
     /// IDLE 条件 (@IDLE, @IDLE>100 など)
     Idle(IdleCondition),
+    /// プロトコル定義にマッチしないメッセージ (@UNKNOWN)
+    Unknown,
     /// AND結合
     And(Vec<SearchExpr>),
     /// OR結合
@@ -25,13 +27,13 @@ impl SearchExpr {
             SearchExpr::And(exprs) | SearchExpr::Or(exprs) => {
                 exprs.iter().any(|e| e.contains_idle())
             }
-            SearchExpr::Term(..) => false,
+            SearchExpr::Term(..) | SearchExpr::Unknown => false,
         }
     }
 
     fn contains_non_idle(&self) -> bool {
         match self {
-            SearchExpr::Term(..) => true,
+            SearchExpr::Term(..) | SearchExpr::Unknown => true,
             SearchExpr::Idle(_) => false,
             SearchExpr::And(exprs) | SearchExpr::Or(exprs) => {
                 exprs.iter().any(|e| e.contains_non_idle())
@@ -39,7 +41,13 @@ impl SearchExpr {
         }
     }
 
-    fn matches(&self, searchable_lower: &str, frame_bytes: &[u8], idle_ms: Option<f64>) -> bool {
+    fn matches(
+        &self,
+        searchable_lower: &str,
+        frame_bytes: &[u8],
+        idle_ms: Option<f64>,
+        is_unknown: bool,
+    ) -> bool {
         match self {
             SearchExpr::Term(text, hex_pat) => {
                 let text_hit = searchable_lower.contains(text.as_str());
@@ -49,12 +57,13 @@ impl SearchExpr {
                 text_hit || byte_hit
             }
             SearchExpr::Idle(cond) => idle_ms.is_some_and(|ms| cond.matches(ms)),
+            SearchExpr::Unknown => is_unknown,
             SearchExpr::And(exprs) => exprs
                 .iter()
-                .all(|e| e.matches(searchable_lower, frame_bytes, idle_ms)),
+                .all(|e| e.matches(searchable_lower, frame_bytes, idle_ms, is_unknown)),
             SearchExpr::Or(exprs) => exprs
                 .iter()
-                .any(|e| e.matches(searchable_lower, frame_bytes, idle_ms)),
+                .any(|e| e.matches(searchable_lower, frame_bytes, idle_ms, is_unknown)),
         }
     }
 }
@@ -105,6 +114,7 @@ fn parse_query(input: &str) -> Option<SearchExpr> {
                     Some(SearchExpr::Term(lower, hex_pat))
                 }
                 Token::IdleTok(cond) => Some(SearchExpr::Idle(cond.clone())),
+                Token::UnknownTok => Some(SearchExpr::Unknown),
                 _ => None,
             })
             .collect();
@@ -127,6 +137,7 @@ fn parse_query(input: &str) -> Option<SearchExpr> {
 enum Token {
     Text(String),
     IdleTok(IdleCondition),
+    UnknownTok,
     And,
     Or,
 }
@@ -177,7 +188,9 @@ fn push_text_or_keyword(tokens: &mut Vec<Token>, text: String) {
         "AND" => tokens.push(Token::And),
         "OR" => tokens.push(Token::Or),
         _ => {
-            if let Some(cond) = parse_idle_condition(&text) {
+            if text.eq_ignore_ascii_case("@unknown") {
+                tokens.push(Token::UnknownTok);
+            } else if let Some(cond) = parse_idle_condition(&text) {
                 tokens.push(Token::IdleTok(cond));
             } else {
                 tokens.push(Token::Text(text));
@@ -289,7 +302,8 @@ impl ProtocolSearchState {
                 None
             };
 
-            if expr.matches(&buf, &matched.frame.bytes, idle_ms) {
+            let is_unknown = matched.message_def_idx.is_none();
+            if expr.matches(&buf, &matched.frame.bytes, idle_ms, is_unknown) {
                 self.results.push(matched.id);
             }
         }
@@ -445,7 +459,7 @@ mod tests {
     fn matches(query: &str, text: &str) -> bool {
         let expr = parse_query(query).expect("non-empty query");
         // 検索対象テキストは事前小文字化済み
-        expr.matches(&text.to_ascii_lowercase(), &[], None)
+        expr.matches(&text.to_ascii_lowercase(), &[], None, false)
     }
 
     #[test]
@@ -496,19 +510,19 @@ mod tests {
         // "a AND b OR c" → (a AND b) OR c
         let expr = parse_query("a AND b OR c").unwrap();
         // c だけでヒット
-        assert!(expr.matches("c", &[], None));
+        assert!(expr.matches("c", &[], None, false));
         // a と b が両方あればヒット
-        assert!(expr.matches("a b", &[], None));
+        assert!(expr.matches("a b", &[], None, false));
         // a だけではヒットしない
-        assert!(!expr.matches("a", &[], None));
+        assert!(!expr.matches("a", &[], None, false));
     }
 
     #[test]
     fn hex_pattern_matches_frame_bytes() {
         // $0D$0A はフレームのバイトパターンとしてマッチ
         let expr = parse_query("$0D$0A").unwrap();
-        assert!(expr.matches("", &[0x01, 0x0D, 0x0A, 0x02], None));
-        assert!(!expr.matches("", &[0x01, 0x02, 0x03], None));
+        assert!(expr.matches("", &[0x01, 0x0D, 0x0A, 0x02], None, false));
+        assert!(!expr.matches("", &[0x01, 0x02, 0x03], None, false));
     }
 
     #[test]
@@ -530,67 +544,109 @@ mod tests {
     #[test]
     fn idle_any_matches_with_preceding_idle() {
         let expr = parse_query("@IDLE").unwrap();
-        assert!(expr.matches("", &[], Some(100.0)));
-        assert!(!expr.matches("", &[], None));
+        assert!(expr.matches("", &[], Some(100.0), false));
+        assert!(!expr.matches("", &[], None, false));
     }
 
     #[test]
     fn idle_gt_condition() {
         let expr = parse_query("@IDLE>100").unwrap();
-        assert!(expr.matches("", &[], Some(200.0)));
-        assert!(!expr.matches("", &[], Some(100.0)));
-        assert!(!expr.matches("", &[], None));
+        assert!(expr.matches("", &[], Some(200.0), false));
+        assert!(!expr.matches("", &[], Some(100.0), false));
+        assert!(!expr.matches("", &[], None, false));
     }
 
     #[test]
     fn idle_and_text_combined() {
         // @IDLE>50 AND MsgA → IDLE>50ms かつテキストに "msga" を含む
         let expr = parse_query("@IDLE>50 MsgA").unwrap();
-        assert!(expr.matches("msga field:1", &[], Some(100.0)));
-        assert!(!expr.matches("msga field:1", &[], Some(30.0)));
-        assert!(!expr.matches("msgb field:1", &[], Some(100.0)));
+        assert!(expr.matches("msga field:1", &[], Some(100.0), false));
+        assert!(!expr.matches("msga field:1", &[], Some(30.0), false));
+        assert!(!expr.matches("msgb field:1", &[], Some(100.0), false));
     }
 
     #[test]
     fn idle_or_text() {
         let expr = parse_query("@IDLE OR error").unwrap();
-        assert!(expr.matches("", &[], Some(10.0)));
-        assert!(expr.matches("error msg", &[], None));
-        assert!(!expr.matches("ok msg", &[], None));
+        assert!(expr.matches("", &[], Some(10.0), false));
+        assert!(expr.matches("error msg", &[], None, false));
+        assert!(!expr.matches("ok msg", &[], None, false));
     }
 
     #[test]
     fn at_sign_non_idle_is_literal() {
         // @abc は IDLE ではなくリテラル検索
         let expr = parse_query("@abc").unwrap();
-        assert!(expr.matches("@abc", &[], None));
-        assert!(!expr.matches("abc", &[], None));
+        assert!(expr.matches("@abc", &[], None, false));
+        assert!(!expr.matches("abc", &[], None, false));
     }
 
     #[test]
     fn idle_range_condition() {
         let expr = parse_query("@IDLE100-500").unwrap();
-        assert!(expr.matches("", &[], Some(100.0)));
-        assert!(expr.matches("", &[], Some(300.0)));
-        assert!(expr.matches("", &[], Some(500.0)));
-        assert!(!expr.matches("", &[], Some(99.0)));
-        assert!(!expr.matches("", &[], Some(501.0)));
+        assert!(expr.matches("", &[], Some(100.0), false));
+        assert!(expr.matches("", &[], Some(300.0), false));
+        assert!(expr.matches("", &[], Some(500.0), false));
+        assert!(!expr.matches("", &[], Some(99.0), false));
+        assert!(!expr.matches("", &[], Some(501.0), false));
     }
 
     #[test]
     fn idle_in_quotes_is_literal() {
         // クォート内の @IDLE はリテラルテキスト扱い
         let expr = parse_query("\"@IDLE\"").unwrap();
-        assert!(expr.matches("@idle", &[], None));
-        assert!(!expr.matches("idle", &[], None));
+        assert!(expr.matches("@idle", &[], None, false));
+        assert!(!expr.matches("idle", &[], None, false));
     }
 
     #[test]
     fn idle_case_insensitive_in_protocol() {
         let expr = parse_query("@idle").unwrap();
-        assert!(expr.matches("", &[], Some(10.0)));
+        assert!(expr.matches("", &[], Some(10.0), false));
         let expr2 = parse_query("@Idle>=50").unwrap();
-        assert!(expr2.matches("", &[], Some(50.0)));
-        assert!(!expr2.matches("", &[], Some(49.0)));
+        assert!(expr2.matches("", &[], Some(50.0), false));
+        assert!(!expr2.matches("", &[], Some(49.0), false));
+    }
+
+    // --- @UNKNOWN 検索 ---
+
+    #[test]
+    fn unknown_only_matches_unknown_messages() {
+        let expr = parse_query("@UNKNOWN").unwrap();
+        assert!(expr.matches("anything", &[0x01], None, true));
+        assert!(!expr.matches("anything", &[0x01], None, false));
+    }
+
+    #[test]
+    fn unknown_case_insensitive() {
+        assert!(parse_query("@unknown").is_some());
+        assert!(parse_query("@Unknown").is_some());
+        assert!(parse_query("@UNKNOWN").is_some());
+    }
+
+    #[test]
+    fn unknown_combined_with_idle() {
+        // 未定義 かつ IDLE>50ms
+        let expr = parse_query("@UNKNOWN @IDLE>50").unwrap();
+        assert!(expr.matches("", &[], Some(100.0), true));
+        assert!(!expr.matches("", &[], Some(100.0), false)); // 未定義じゃない
+        assert!(!expr.matches("", &[], Some(30.0), true)); // IDLE 短い
+    }
+
+    #[test]
+    fn unknown_or_text() {
+        let expr = parse_query("@UNKNOWN OR error").unwrap();
+        assert!(expr.matches("", &[], None, true));
+        assert!(expr.matches("error msg", &[], None, false));
+        assert!(!expr.matches("ok msg", &[], None, false));
+    }
+
+    #[test]
+    fn unknown_in_quotes_is_literal() {
+        // クォート内の @UNKNOWN はリテラルテキスト扱い
+        let expr = parse_query("\"@UNKNOWN\"").unwrap();
+        assert!(expr.matches("@unknown", &[], None, false));
+        assert!(!expr.matches("unknown", &[], None, false));
+        assert!(!expr.matches("xxx", &[], None, true));
     }
 }
