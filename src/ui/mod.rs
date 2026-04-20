@@ -21,6 +21,7 @@ pub mod protocol_search;
 pub mod search;
 pub mod search_bar;
 pub mod selection;
+pub mod send_panel;
 pub mod sequence_diagram;
 pub mod settings_window;
 pub mod status_bar;

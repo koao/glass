@@ -3,8 +3,10 @@ use super::entry::DataEntry;
 /// モニタグリッド用の表示セル
 #[derive(Clone, Debug)]
 pub enum DisplayCell {
-    /// データバイト
+    /// 受信データバイト
     Data(u8),
+    /// 送信データバイト
+    Sent(u8),
     /// IDLEカウンタの1文字（0埋め4桁の各桁）
     IdleChar(char),
 }
@@ -75,6 +77,10 @@ impl DisplayBuffer {
         match entry {
             DataEntry::Byte(b, _) => {
                 self.cells.push(DisplayCell::Data(*b));
+                self.entry_indices.push(entry_idx);
+            }
+            DataEntry::Sent(b, _) => {
+                self.cells.push(DisplayCell::Sent(*b));
                 self.entry_indices.push(entry_idx);
             }
             DataEntry::Idle(ms) => {
@@ -196,5 +202,13 @@ mod tests {
         let mut buf = DisplayBuffer::new();
         buf.sync_entries(&[DataEntry::Error], 100.0, 0);
         assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn sent_entry_becomes_sent_cell() {
+        let mut buf = DisplayBuffer::new();
+        buf.sync_entries(&[DataEntry::Sent(0x42, Instant::now())], 100.0, 0);
+        assert_eq!(buf.len(), 1);
+        assert!(matches!(buf.cells()[0], DisplayCell::Sent(0x42)));
     }
 }

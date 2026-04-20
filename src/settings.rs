@@ -20,6 +20,13 @@ pub struct MonitorColors {
     pub idle_text: [u8; 3],
     /// IDLEカウンタ背景色
     pub idle_bg: [u8; 3],
+    /// 送信バイト色 (PCから送信したデータの表示色)
+    #[serde(default = "default_sent_color")]
+    pub sent_color: [u8; 3],
+}
+
+fn default_sent_color() -> [u8; 3] {
+    rgb(theme::SENT_COLOR)
 }
 
 const fn rgb(c: Color32) -> [u8; 3] {
@@ -34,6 +41,7 @@ impl Default for MonitorColors {
             high_byte_color: rgb(theme::HIGH_BYTE_COLOR),
             idle_text: rgb(theme::IDLE_TEXT),
             idle_bg: rgb(theme::IDLE_BG),
+            sent_color: rgb(theme::SENT_COLOR),
         }
     }
 }
@@ -61,6 +69,9 @@ impl MonitorColors {
     }
     pub fn idle_bg_color32(&self) -> Color32 {
         Color32::from_rgb(self.idle_bg[0], self.idle_bg[1], self.idle_bg[2])
+    }
+    pub fn sent_color32(&self) -> Color32 {
+        Color32::from_rgb(self.sent_color[0], self.sent_color[1], self.sent_color[2])
     }
 }
 

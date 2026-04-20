@@ -9,4 +9,6 @@ pub enum DataEntry {
     Idle(f64),
     /// 通信エラー（フレーミング、オーバーラン、パリティ等）
     Error,
+    /// 送信バイト (値, 送信時刻)
+    Sent(u8, Instant),
 }

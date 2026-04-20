@@ -11,6 +11,8 @@ pub enum SavedEntry {
     Byte(u8, u64),
     /// アイドル検出 (持続時間ms)
     Idle(f64),
+    /// 送信バイト (値, 先頭バイトからの相対時間μs)
+    Sent(u8, u64),
 }
 
 /// Glass モニタファイルフォーマット (.glm)
@@ -36,6 +38,11 @@ impl GlassFile {
                     let rel = ts.duration_since(base).as_micros() as u64;
                     Some(SavedEntry::Byte(*val, rel))
                 }
+                DataEntry::Sent(val, ts) => {
+                    let base = *t0.get_or_insert(*ts);
+                    let rel = ts.duration_since(base).as_micros() as u64;
+                    Some(SavedEntry::Sent(*val, rel))
+                }
                 DataEntry::Idle(ms) => Some(SavedEntry::Idle(*ms)),
                 DataEntry::Error => None,
             })
@@ -57,6 +64,10 @@ impl GlassFile {
                 SavedEntry::Byte(val, rel_us) => {
                     let ts = base + std::time::Duration::from_micros(*rel_us);
                     DataEntry::Byte(*val, ts)
+                }
+                SavedEntry::Sent(val, rel_us) => {
+                    let ts = base + std::time::Duration::from_micros(*rel_us);
+                    DataEntry::Sent(*val, ts)
                 }
                 SavedEntry::Idle(ms) => DataEntry::Idle(*ms),
             })
@@ -95,6 +106,7 @@ mod tests {
         let extract = |e: &DataEntry| -> (Option<u8>, Option<f64>) {
             match e {
                 DataEntry::Byte(b, _) => (Some(*b), None),
+                DataEntry::Sent(b, _) => (Some(*b), None),
                 DataEntry::Idle(ms) => (None, Some(*ms)),
                 DataEntry::Error => (None, None),
             }
@@ -139,6 +151,21 @@ mod tests {
         let file = GlassFile::from_entries(&[]);
         assert!(file.entries.is_empty());
         assert!(file.to_entries().is_empty());
+    }
+
+    #[test]
+    fn sent_entries_roundtrip() {
+        let t0 = Instant::now();
+        let entries = vec![
+            DataEntry::Byte(0x01, t0),
+            DataEntry::Sent(0x02, t0 + Duration::from_micros(30)),
+            DataEntry::Byte(0x03, t0 + Duration::from_micros(60)),
+        ];
+        let file = GlassFile::from_entries(&entries);
+        let restored = file.to_entries();
+        assert!(matches!(restored[0], DataEntry::Byte(0x01, _)));
+        assert!(matches!(restored[1], DataEntry::Sent(0x02, _)));
+        assert!(matches!(restored[2], DataEntry::Byte(0x03, _)));
     }
 
     #[test]

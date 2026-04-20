@@ -15,6 +15,8 @@ pub const DATA_COLOR: Color32 = Color32::from_rgb(156, 190, 156);
 pub const CONTROL_COLOR: Color32 = Color32::from_rgb(212, 165, 106);
 /// 高バイト (0x80-0xFF): スチールブルー (対背景 ~7.2:1)
 pub const HIGH_BYTE_COLOR: Color32 = Color32::from_rgb(160, 180, 212);
+/// 送信バイト: ピンク寄りマゼンタ (受信系のどの色とも衝突しない)
+pub const SENT_COLOR: Color32 = Color32::from_rgb(220, 140, 180);
 
 // --- IDLEマーカー ---
 pub const IDLE_BG: Color32 = Color32::from_rgb(42, 48, 56);

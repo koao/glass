@@ -526,6 +526,25 @@ mod tests {
     // --- SearchState IDLE モード ---
 
     #[test]
+    fn search_skips_sent_bytes() {
+        // 送信バイトは検索対象外（受信データのみを対象とする）
+        let t = std::time::Instant::now();
+        let entries = vec![
+            DataEntry::Byte(0x41, t),
+            DataEntry::Sent(0x42, t),
+            DataEntry::Byte(0x43, t),
+        ];
+        let mut state = SearchState::new();
+        state.query = "$42".to_string();
+        state.search(&entries);
+        assert_eq!(
+            state.result_count(),
+            0,
+            "送信バイト 0x42 は検索ヒットしてはならない"
+        );
+    }
+
+    #[test]
     fn search_idle_finds_idle_entries() {
         let t = std::time::Instant::now();
         let entries = vec![

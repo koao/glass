@@ -198,6 +198,8 @@ impl ProtocolState {
                     }
                 }
                 DataEntry::Error => {}
+                // 送信バイトはプロトコルパース対象外（表示のみ）
+                DataEntry::Sent(_, _) => {}
             }
         }
         self.processed_count = entries.len();
@@ -744,6 +746,24 @@ first_byte = "02"
         feed_all(&mut state, &engine, &[0x02, 0x11, 0x22]);
         assert_eq!(state.matches.len(), 1);
         assert_eq!(state.matches[0].message_def_idx, None);
+    }
+
+    #[test]
+    fn sent_entries_are_ignored_by_parser() {
+        // 送信バイトは受信フレームの途中に混ざっても、パースには影響しない
+        let engine = engine_fixed_len_4();
+        let mut state = ProtocolState::new();
+        let entries = vec![
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Sent(0xEE, t()),
+            DataEntry::Byte(0x01, t()),
+            DataEntry::Sent(0xEF, t()),
+            DataEntry::Byte(0x02, t()),
+            DataEntry::Byte(0x03, t()),
+        ];
+        state.sync_entries(&entries, &engine, 0);
+        assert_eq!(state.matches.len(), 1);
+        assert_eq!(state.matches[0].frame.bytes, vec![0x02, 0x01, 0x02, 0x03]);
     }
 
     #[test]

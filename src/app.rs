@@ -7,7 +7,7 @@ use crossbeam_channel::{Receiver, Sender};
 use eframe::egui;
 
 /// ウィンドウ最小サイズ
-pub const MIN_WINDOW_SIZE: [f32; 2] = [1200.0, 400.0];
+pub const MIN_WINDOW_SIZE: [f32; 2] = [1000.0, 400.0];
 
 use crate::i18n::{Language, Texts};
 use crate::model::buffer::MonitorBuffer;
@@ -16,6 +16,7 @@ use crate::model::file_format::GlassFile;
 use crate::model::grid::DisplayBuffer;
 use crate::protocol::definition::{self, ProtocolFile};
 use crate::protocol::engine::{ProtocolEngine, ProtocolState};
+use crate::sender::{self, SendRule};
 use crate::serial::config::SerialConfig;
 use crate::serial::worker;
 use crate::settings::AppSettings;
@@ -207,6 +208,10 @@ pub struct UiState {
     pub show_protocol_filter: bool,
     /// トリガ設定ウィンドウ表示フラグ
     pub show_trigger_window: bool,
+    /// 送信パネル表示フラグ
+    pub show_send_panel: bool,
+    /// 送信パネルで選択中のルール index
+    pub selected_send_rule_idx: Option<usize>,
     /// プロトコルパネル表示モード
     pub protocol_view_mode: ProtocolViewMode,
     /// ラップ表示の状態
@@ -267,6 +272,10 @@ pub struct GlassApp {
     pub monitor_colors: MonitorColors,
     /// バイト列パターントリガ
     pub trigger: ByteTrigger,
+    /// PC 発信用の送信ルール一覧
+    pub send_rules: Vec<SendRule>,
+    /// 送信要求チャネルの送信側 (Running 中のみ Some)
+    send_sender: Option<Sender<Vec<u8>>>,
 }
 
 impl GlassApp {
@@ -359,6 +368,8 @@ impl GlassApp {
                 protocol_show_idle: true,
                 show_protocol_filter: false,
                 show_trigger_window: false,
+                show_send_panel: false,
+                selected_send_rule_idx: None,
                 protocol_view_mode: if settings.protocol_view_mode == "wrap" {
                     ProtocolViewMode::Wrap
                 } else {
@@ -395,6 +406,8 @@ impl GlassApp {
                 t.post_match_delay_ms = settings.trigger_post_delay_ms;
                 t
             },
+            send_rules: sender::load_send_rules(),
+            send_sender: None,
         };
         app.refresh_ports();
         app
@@ -474,13 +487,15 @@ impl GlassApp {
         self.clear_all();
 
         let (data_tx, data_rx) = crossbeam_channel::unbounded();
+        let (send_tx, send_rx) = crossbeam_channel::unbounded::<Vec<u8>>();
         let (stop_tx, stop_rx) = crossbeam_channel::bounded(1);
         let idle_threshold = Duration::from_secs_f64(self.idle_threshold_ms / 1000.0);
 
-        match worker::spawn_receiver(&self.config, idle_threshold, data_tx, stop_rx) {
+        match worker::spawn_worker(&self.config, idle_threshold, data_tx, send_rx, stop_rx) {
             Ok(handle) => {
                 self.receiver = Some(data_rx);
                 self.stop_sender = Some(stop_tx);
+                self.send_sender = Some(send_tx);
                 self.worker_handle = Some(handle);
                 self.state = MonitorState::Running;
                 self.last_byte_time = Some(Instant::now());
@@ -524,8 +539,11 @@ impl GlassApp {
             loop {
                 match rx.try_recv() {
                     Ok(entry) => {
-                        if let DataEntry::Byte(_, ts) = &entry {
-                            self.last_byte_time = Some(*ts);
+                        match &entry {
+                            DataEntry::Byte(_, ts) | DataEntry::Sent(_, ts) => {
+                                self.last_byte_time = Some(*ts);
+                            }
+                            _ => {}
                         }
                         self.buffer.push(entry);
                     }
@@ -547,6 +565,8 @@ impl GlassApp {
 
     /// 受信停止の共通後処理
     fn teardown(&mut self, new_state: MonitorState) {
+        // 送信チャネルを先に drop すると forwarder が終了し、ワーカーの join が抜ける
+        self.send_sender = None;
         if let Some(handle) = self.worker_handle.take() {
             let _ = handle.join();
         }
@@ -556,6 +576,56 @@ impl GlassApp {
         self.sync_views_to_buffer();
         if let Some(engine) = &self.protocol_engine {
             self.protocol_state.flush(engine);
+        }
+        // 送信ルールのタイマー/スキャン状態をリセット
+        let entries_len = self.buffer.entries().len();
+        for rule in &mut self.send_rules {
+            rule.reset_execution_state(entries_len);
+        }
+    }
+
+    /// 送信ルールのバイト列を手動送信する (UI のボタンから呼ぶ)
+    pub fn send_rule_now(&self, idx: usize) {
+        let Some(rule) = self.send_rules.get(idx) else {
+            return;
+        };
+        if rule.bytes().is_empty() {
+            return;
+        }
+        if let Some(tx) = &self.send_sender {
+            let _ = tx.send(rule.bytes().to_vec());
+        }
+    }
+
+    /// 定期送信・受信トリガ送信を毎フレーム評価する
+    pub fn evaluate_send_rules(&mut self) {
+        use crate::sender::SendMode;
+
+        if self.state != MonitorState::Running {
+            return;
+        }
+        let Some(tx) = self.send_sender.as_ref() else {
+            return;
+        };
+        // Manual 以外で enabled なルールが無ければ早期リターン (buffer 借用も不要)
+        if !self
+            .send_rules
+            .iter()
+            .any(|r| r.enabled && !matches!(r.mode, SendMode::Manual))
+        {
+            return;
+        }
+        let now = Instant::now();
+        let entries = self.buffer.entries();
+        for rule in self.send_rules.iter_mut().filter(|r| r.enabled) {
+            let payload = match rule.mode {
+                SendMode::Manual => None,
+                SendMode::Interval { .. } => rule.tick_interval(now),
+                SendMode::OnReceive { .. } => rule.scan_recv(entries),
+            };
+            if let Some(bytes) = payload {
+                let _ = tx.send(bytes);
+            }
         }
     }
 
@@ -574,6 +644,9 @@ impl GlassApp {
         self.protocol_search.clear();
         self.trigger.disarm();
         self.trigger.reset_scan_cursor(0);
+        for rule in &mut self.send_rules {
+            rule.reset_execution_state(0);
+        }
     }
 
     /// 検索バーの表示/非表示を切り替え（アクティブタブに応じて）
@@ -785,6 +858,9 @@ impl eframe::App for GlassApp {
         // チャネルからデータ受信
         self.drain_channel();
 
+        // 送信ルールの評価（定期送信と受信トリガ送信）
+        self.evaluate_send_rules();
+
         // トリガ評価（Running 中のみ）。発火したら発火時点までの受信を表示に反映してから pause
         if self.state == MonitorState::Running
             && self.trigger.armed
@@ -820,12 +896,13 @@ impl eframe::App for GlassApp {
         }
 
         // キーボードショートカット
-        let (ctrl_f, ctrl_o, ctrl_s, ctrl_shift_s, escape) = ui.input(|i| {
+        let (ctrl_f, ctrl_o, ctrl_s, ctrl_shift_s, ctrl_t, escape) = ui.input(|i| {
             (
                 i.key_pressed(egui::Key::F) && i.modifiers.ctrl,
                 i.key_pressed(egui::Key::O) && i.modifiers.ctrl && !i.modifiers.shift,
                 i.key_pressed(egui::Key::S) && i.modifiers.ctrl && !i.modifiers.shift,
                 i.key_pressed(egui::Key::S) && i.modifiers.ctrl && i.modifiers.shift,
+                i.key_pressed(egui::Key::T) && i.modifiers.ctrl,
                 i.key_pressed(egui::Key::Escape),
             )
         });
@@ -856,6 +933,9 @@ impl eframe::App for GlassApp {
         }
         if ctrl_f {
             self.toggle_search();
+        }
+        if ctrl_t {
+            self.ui_state.show_send_panel = !self.ui_state.show_send_panel;
         }
         if escape {
             if self.ui_state.show_search_bar && self.active_tab == ViewTab::Monitor {
@@ -895,6 +975,7 @@ impl eframe::App for GlassApp {
         // フローティングウィンドウ
         ui::settings_window::draw(ui, self);
         ui::trigger_window::draw(ui.ctx(), self);
+        ui::send_panel::draw(ui.ctx(), self);
         ui::search_bar::draw_help(ui, self);
         ui::sequence_diagram::draw(ui.ctx(), self);
         ui::dialog::draw(ui.ctx(), self);
@@ -916,5 +997,6 @@ impl eframe::App for GlassApp {
     fn on_exit(&mut self) {
         self.stop();
         self.save_settings();
+        sender::save_send_rules(&self.send_rules);
     }
 }

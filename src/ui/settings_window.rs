@@ -240,6 +240,7 @@ fn draw_colors_tab(ui: &mut Ui, app: &mut GlassApp) {
         app.t.color_high_byte,
         &mut app.monitor_colors.high_byte_color,
     );
+    color_row(ui, app.t.color_sent, &mut app.monitor_colors.sent_color);
     color_row(ui, app.t.color_idle_text, &mut app.monitor_colors.idle_text);
     color_row(ui, app.t.color_idle_bg, &mut app.monitor_colors.idle_bg);
 

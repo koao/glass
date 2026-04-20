@@ -5,11 +5,16 @@ use crossbeam_channel::{Receiver, Sender};
 use crate::model::entry::DataEntry;
 use crate::serial::config::SerialConfig;
 
-/// 受信スレッドを起動する
-pub fn spawn_receiver(
+/// 送受信スレッドを起動する。
+///
+/// - `data_sender` に受信バイト (`DataEntry::Byte`) と送信バイト (`DataEntry::Sent`) を流す
+/// - `send_rx` から送信要求 (`Vec<u8>`) を受け取る
+/// - `stop` シグナルで停止
+pub fn spawn_worker(
     config: &SerialConfig,
     idle_threshold: Duration,
-    sender: Sender<DataEntry>,
+    data_sender: Sender<DataEntry>,
+    send_rx: Receiver<Vec<u8>>,
     stop: Receiver<()>,
 ) -> Result<std::thread::JoinHandle<()>, serialport::Error> {
     let byte_duration = config.byte_duration();
@@ -17,18 +22,19 @@ pub fn spawn_receiver(
     #[cfg(target_os = "windows")]
     {
         // メインスレッドでポートを開いてエラーを呼び出し元に返す
-        let port_handle = win32_receiver::open_and_configure(config).map_err(|e| {
+        let port_handle = win32_worker::open_and_configure(config).map_err(|e| {
             serialport::Error::new(serialport::ErrorKind::Io(e.kind()), e.to_string())
         })?;
         let handle = std::thread::spawn(move || {
-            if let Err(e) = win32_receiver::run_with_handle(
+            if let Err(e) = win32_worker::run_with_handle(
                 port_handle,
                 idle_threshold,
                 byte_duration,
-                sender,
+                data_sender,
+                send_rx,
                 stop,
             ) {
-                tracing::error!(error = %e, "受信エラー");
+                tracing::error!(error = %e, "送受信エラー");
             }
         });
         Ok(handle)
@@ -47,7 +53,14 @@ pub fn spawn_receiver(
             .open()?;
 
         let handle = std::thread::spawn(move || {
-            fallback_receiver_loop(port, idle_threshold, byte_duration, sender, stop);
+            fallback_worker_loop(
+                port,
+                idle_threshold,
+                byte_duration,
+                data_sender,
+                send_rx,
+                stop,
+            );
         });
         Ok(handle)
     }
@@ -87,14 +100,53 @@ fn process_bytes(
     }
 }
 
+/// 送信バイト列をモニタに反映する (送信成功時に呼ぶ)。
+///
+/// 送信前に前回バイト (受信/送信問わず) との間隔を見て IDLE しきい値を超えていれば
+/// `DataEntry::Idle` を先に挿入する。これによりライブ IDLE カウンタが送信エントリの
+/// 後ろに追い越される (送信が IDLE の前に現れる) 現象を防ぐ。
+fn emit_sent(
+    data: &[u8],
+    sender: &Sender<DataEntry>,
+    last_byte_time: &mut Option<Instant>,
+    byte_duration: Duration,
+    idle_threshold: Duration,
+) {
+    if data.is_empty() {
+        return;
+    }
+    let now = Instant::now();
+
+    if let Some(last) = *last_byte_time
+        && let Some(elapsed) = now.checked_duration_since(last)
+    {
+        let corrected = elapsed.saturating_sub(byte_duration);
+        if corrected >= idle_threshold {
+            let ms = corrected.as_secs_f64() * 1000.0;
+            if sender.send(DataEntry::Idle(ms)).is_err() {
+                return;
+            }
+        }
+    }
+
+    for &b in data {
+        if sender.send(DataEntry::Sent(b, now)).is_err() {
+            return;
+        }
+    }
+    *last_byte_time = Some(now);
+}
+
 // ========== Windows: WaitCommEvent イベント駆動方式 ==========
 #[cfg(target_os = "windows")]
-mod win32_receiver {
+mod win32_worker {
     use super::*;
     use crate::serial::config::{ParitySetting, StopBitsSetting};
+    use std::collections::VecDeque;
     use std::io;
     use std::mem::{self, MaybeUninit};
     use std::ptr;
+    use std::sync::{Arc, Mutex};
     use windows_sys::Win32::Devices::Communication::*;
     use windows_sys::Win32::Foundation::*;
     use windows_sys::Win32::Storage::FileSystem::*;
@@ -220,12 +272,51 @@ mod win32_receiver {
         Ok(handle)
     }
 
-    /// 事前にオープン済みのハンドルで受信ループを実行
+    /// ポートへ同期的に送信 (overlapped I/O で完了待ち)
+    fn write_sync(handle: HANDLE, data: &[u8], write_event: HANDLE) -> io::Result<()> {
+        if data.is_empty() {
+            return Ok(());
+        }
+        let mut overlapped: OVERLAPPED = unsafe { mem::zeroed() };
+        overlapped.hEvent = write_event;
+        let mut written: u32 = 0;
+        let ok = unsafe {
+            WriteFile(
+                handle,
+                data.as_ptr(),
+                data.len() as u32,
+                &mut written,
+                &mut overlapped,
+            )
+        };
+        if ok == 0 {
+            let err = unsafe { GetLastError() };
+            if err != ERROR_IO_PENDING {
+                return Err(io::Error::from_raw_os_error(err as i32));
+            }
+            // 完了待ち
+            let ok2 = unsafe { GetOverlappedResult(handle, &overlapped, &mut written, TRUE) };
+            if ok2 == 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        if (written as usize) != data.len() {
+            return Err(io::Error::other(format!(
+                "WriteFile: {} / {} bytes written",
+                written,
+                data.len()
+            )));
+        }
+        Ok(())
+    }
+
+    /// 事前にオープン済みのハンドルで送受信ループを実行
     pub fn run_with_handle(
         handle: isize,
         idle_threshold: Duration,
         byte_duration: Duration,
-        sender: Sender<DataEntry>,
+        data_sender: Sender<DataEntry>,
+        send_rx: Receiver<Vec<u8>>,
         stop: Receiver<()>,
     ) -> io::Result<()> {
         init_thread();
@@ -242,47 +333,81 @@ mod win32_receiver {
         let _comm_guard = HandleGuard(comm_event);
         let read_event = create_event()?;
         let _read_guard = HandleGuard(read_event);
+        let write_event = create_event()?;
+        let _write_guard = HandleGuard(write_event);
         // 停止用イベント: WaitForMultipleObjectsで使用
         let stop_event = create_event()?;
         let _stop_guard = HandleGuard(stop_event);
+        // 送信要求通知イベント
+        let send_event = create_event()?;
+        let _send_guard = HandleGuard(send_event);
 
         let mut buf = [0u8; 256];
         let mut last_byte_time: Option<Instant> = None;
-        let wait_handles = [comm_event, stop_event];
+        let wait_handles = [comm_event, stop_event, send_event];
 
         // HANDLE は !Send なので Send を約束する newtype で包んで forwarder に渡す
         struct SendHandle(HANDLE);
         unsafe impl Send for SendHandle {}
         let stop_event_send = SendHandle(stop_event);
+        let send_event_send = SendHandle(send_event);
+
+        // forwarder が send_rx から取り出した電文を worker が取り出す中継キュー
+        let pending: Arc<Mutex<VecDeque<Vec<u8>>>> = Arc::new(Mutex::new(VecDeque::new()));
+        let pending_forwarder = Arc::clone(&pending);
 
         // 受信ループは WaitForMultipleObjects(INFINITE) でブロックするため、
-        // stop チャネルを監視して stop_event を起こす小スレッドを使う。
+        // stop / send チャネルを監視して対応するイベントを起こす forwarder を使う。
         // shutdown_tx は受信ループがエラー終了した際に forwarder を起こす経路。
         let (shutdown_tx, shutdown_rx) = crossbeam_channel::bounded::<()>(1);
         let forwarder = std::thread::spawn(move || {
-            let SendHandle(h) = stop_event_send;
-            crossbeam_channel::select! {
-                recv(stop) -> _ => unsafe { SetEvent(h); },
-                recv(shutdown_rx) -> _ => {}
+            let SendHandle(stop_h) = stop_event_send;
+            let SendHandle(send_h) = send_event_send;
+            loop {
+                crossbeam_channel::select! {
+                    recv(stop) -> _ => {
+                        unsafe { SetEvent(stop_h); }
+                        break;
+                    }
+                    recv(shutdown_rx) -> _ => break,
+                    recv(send_rx) -> payload => {
+                        match payload {
+                            Ok(bytes) => {
+                                if let Ok(mut q) = pending_forwarder.lock() {
+                                    q.push_back(bytes);
+                                }
+                                unsafe { SetEvent(send_h); }
+                            }
+                            // 送信チャネルが閉じた場合は forwarder を終了
+                            // (本体ループは comm_event / stop_event で回るので問題ない)
+                            Err(_) => break,
+                        }
+                    }
+                }
             }
         });
 
+        let mut comm_event_pending = false;
         loop {
-            let mut event_mask: u32 = 0;
-            let mut overlapped: OVERLAPPED = unsafe { mem::zeroed() };
-            overlapped.hEvent = comm_event;
+            if !comm_event_pending {
+                let mut event_mask: u32 = 0;
+                let mut overlapped: OVERLAPPED = unsafe { mem::zeroed() };
+                overlapped.hEvent = comm_event;
 
-            let ret = unsafe { WaitCommEvent(handle, &mut event_mask, &mut overlapped) };
-            if ret == 0 {
-                let err = unsafe { GetLastError() };
-                if err != ERROR_IO_PENDING {
-                    break;
+                let ret = unsafe { WaitCommEvent(handle, &mut event_mask, &mut overlapped) };
+                if ret == 0 {
+                    let err = unsafe { GetLastError() };
+                    if err != ERROR_IO_PENDING {
+                        break;
+                    }
                 }
+                comm_event_pending = true;
             }
 
-            // comm_event または stop_event を待機
-            let wait = unsafe { WaitForMultipleObjects(2, wait_handles.as_ptr(), FALSE, INFINITE) };
+            // comm_event / stop_event / send_event のいずれかを待機
+            let wait = unsafe { WaitForMultipleObjects(3, wait_handles.as_ptr(), FALSE, INFINITE) };
             if wait == WAIT_OBJECT_0 {
+                comm_event_pending = false;
                 // バイト到着 — 即座にタイムスタンプ取得
                 let now = Instant::now();
                 unsafe { ResetEvent(comm_event) };
@@ -293,7 +418,7 @@ mod win32_receiver {
 
                 // 通信エラーをチャネルに送信
                 if errors & (CE_FRAME | CE_OVERRUN | CE_RXPARITY) != 0 {
-                    let _ = sender.send(DataEntry::Error);
+                    let _ = data_sender.send(DataEntry::Error);
                 }
 
                 let available = unsafe { comstat.assume_init().cbInQue };
@@ -330,8 +455,31 @@ mod win32_receiver {
                             byte_duration,
                             idle_threshold,
                             &mut last_byte_time,
-                            &sender,
+                            &data_sender,
                         );
+                    }
+                }
+            } else if wait == WAIT_OBJECT_0 + 2 {
+                // 送信要求 — キューを drain して順に WriteFile
+                unsafe { ResetEvent(send_event) };
+                let to_send: Vec<Vec<u8>> = {
+                    match pending.lock() {
+                        Ok(mut q) => q.drain(..).collect(),
+                        Err(_) => Vec::new(),
+                    }
+                };
+                for payload in to_send {
+                    match write_sync(handle, &payload, write_event) {
+                        Ok(()) => emit_sent(
+                            &payload,
+                            &data_sender,
+                            &mut last_byte_time,
+                            byte_duration,
+                            idle_threshold,
+                        ),
+                        Err(e) => {
+                            tracing::warn!(error = %e, "送信失敗");
+                        }
                     }
                 }
             } else {
@@ -351,11 +499,12 @@ mod win32_receiver {
 
 // ========== 非Windows用フォールバック ==========
 #[cfg(not(target_os = "windows"))]
-fn fallback_receiver_loop(
+fn fallback_worker_loop(
     mut port: Box<dyn serialport::SerialPort>,
     idle_threshold: Duration,
     byte_duration: Duration,
     sender: Sender<DataEntry>,
+    send_rx: Receiver<Vec<u8>>,
     stop: Receiver<()>,
 ) {
     let mut buf = [0u8; 256];
@@ -364,6 +513,21 @@ fn fallback_receiver_loop(
     loop {
         if stop.try_recv().is_ok() {
             break;
+        }
+        // 送信要求をすべて処理
+        while let Ok(payload) = send_rx.try_recv() {
+            match port.write_all(&payload) {
+                Ok(()) => emit_sent(
+                    &payload,
+                    &sender,
+                    &mut last_byte_time,
+                    byte_duration,
+                    idle_threshold,
+                ),
+                Err(e) => {
+                    tracing::warn!(error = %e, "送信失敗");
+                }
+            }
         }
         match port.read(&mut buf) {
             Ok(n) if n > 0 => {

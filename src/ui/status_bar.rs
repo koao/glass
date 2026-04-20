@@ -20,6 +20,13 @@ pub fn draw(ui: &mut Ui, app: &GlassApp) {
         ));
         ui.separator();
 
+        // 送信バイト数 (送信があるときのみ表示)
+        let sent = app.buffer.sent_count();
+        if sent > 0 {
+            ui.label(format!("{}: {} bytes", app.t.send, sent));
+            ui.separator();
+        }
+
         // エラー数
         let error_count = app.buffer.error_count();
         if error_count > 0 {

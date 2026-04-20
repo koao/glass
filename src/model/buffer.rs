@@ -10,6 +10,7 @@ pub struct MonitorBuffer {
     entries: Vec<DataEntry>,
     byte_count: usize,
     error_count: usize,
+    sent_count: usize,
     /// 累積削除エントリ数（下流の sync_entries が trim 差分を検出するために使う）
     trimmed_total: usize,
 }
@@ -20,6 +21,7 @@ impl MonitorBuffer {
             entries: Vec::new(),
             byte_count: 0,
             error_count: 0,
+            sent_count: 0,
             trimmed_total: 0,
         }
     }
@@ -28,6 +30,7 @@ impl MonitorBuffer {
     pub fn push(&mut self, entry: DataEntry) {
         match &entry {
             DataEntry::Byte(..) => self.byte_count += 1,
+            DataEntry::Sent(..) => self.sent_count += 1,
             DataEntry::Error => self.error_count += 1,
             _ => {}
         }
@@ -44,6 +47,7 @@ impl MonitorBuffer {
         self.entries.clear();
         self.byte_count = 0;
         self.error_count = 0;
+        self.sent_count = 0;
         self.trimmed_total = 0;
     }
 
@@ -57,6 +61,10 @@ impl MonitorBuffer {
 
     pub fn error_count(&self) -> usize {
         self.error_count
+    }
+
+    pub fn sent_count(&self) -> usize {
+        self.sent_count
     }
 
     pub fn trimmed_total(&self) -> usize {
@@ -73,6 +81,10 @@ impl MonitorBuffer {
         self.byte_count = entries
             .iter()
             .filter(|e| matches!(e, DataEntry::Byte(..)))
+            .count();
+        self.sent_count = entries
+            .iter()
+            .filter(|e| matches!(e, DataEntry::Sent(..)))
             .count();
         self.entries = entries;
     }

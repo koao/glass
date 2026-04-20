@@ -5,6 +5,7 @@ mod i18n;
 mod logging;
 mod model;
 mod protocol;
+mod sender;
 mod serial;
 mod settings;
 mod trigger;

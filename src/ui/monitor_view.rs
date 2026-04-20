@@ -463,7 +463,10 @@ fn draw_cell(
 ) {
     match cell {
         DisplayCell::Data(byte) => {
-            draw_data_byte(painter, rect, *byte, mode, colors);
+            draw_data_byte(painter, rect, *byte, mode, colors, false);
+        }
+        DisplayCell::Sent(byte) => {
+            draw_data_byte(painter, rect, *byte, mode, colors, true);
         }
         DisplayCell::IdleChar(ch) => {
             draw_idle_char(painter, rect, *ch, colors, search_bg);
@@ -497,25 +500,32 @@ fn hex_label(byte: u8) -> String {
     format!("x{:02X}", byte)
 }
 
-/// データバイトを描画
+/// データバイトを描画。is_sent=true なら送信色で統一描画する
 fn draw_data_byte(
     painter: &egui::Painter,
     rect: Rect,
     byte: u8,
     mode: &DisplayMode,
     colors: &MonitorColors,
+    is_sent: bool,
 ) {
     let rotated_font = FontId::monospace(ROTATED_FONT_SIZE);
 
+    // 送信バイトは種別に関わらず送信色で統一 (送受方向の視認性を優先)
+    let (data_color, control_color, high_color) = if is_sent {
+        let s = colors.sent_color32();
+        (s, s, s)
+    } else {
+        (
+            colors.data_color32(),
+            colors.control_color32(),
+            colors.high_byte_color32(),
+        )
+    };
+
     match mode {
         DisplayMode::Hex => {
-            draw_rotated(
-                painter,
-                rect,
-                &hex_label(byte),
-                &rotated_font,
-                colors.high_byte_color32(),
-            );
+            draw_rotated(painter, rect, &hex_label(byte), &rotated_font, high_color);
         }
         DisplayMode::Ascii => {
             if (0x21..=0x7E).contains(&byte) {
@@ -525,27 +535,15 @@ fn draw_data_byte(
                     Align2::CENTER_CENTER,
                     String::from(byte as char),
                     font_id,
-                    colors.data_color32(),
+                    data_color,
                 );
             } else if byte <= 0x20 {
                 let name = CONTROL_CODES[byte as usize];
-                draw_rotated(painter, rect, name, &rotated_font, colors.control_color32());
+                draw_rotated(painter, rect, name, &rotated_font, control_color);
             } else if byte == 0x7F {
-                draw_rotated(
-                    painter,
-                    rect,
-                    "DEL",
-                    &rotated_font,
-                    colors.control_color32(),
-                );
+                draw_rotated(painter, rect, "DEL", &rotated_font, control_color);
             } else {
-                draw_rotated(
-                    painter,
-                    rect,
-                    &hex_label(byte),
-                    &rotated_font,
-                    colors.high_byte_color32(),
-                );
+                draw_rotated(painter, rect, &hex_label(byte), &rotated_font, high_color);
             }
         }
     }

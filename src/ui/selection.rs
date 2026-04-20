@@ -100,7 +100,7 @@ pub fn format_monitor_mixed(cells: &[DisplayCell], range: (usize, usize)) -> Str
     let mut in_idle = false;
     for cell in &cells[range.0..=range.1.min(cells.len() - 1)] {
         match cell {
-            DisplayCell::Data(b) => {
+            DisplayCell::Data(b) | DisplayCell::Sent(b) => {
                 if in_idle {
                     out.push_str("[IDLE]");
                     in_idle = false;
@@ -128,7 +128,7 @@ pub fn format_monitor_hex(cells: &[DisplayCell], range: (usize, usize)) -> Strin
     let mut in_idle = false;
     for cell in &cells[range.0..=range.1.min(cells.len() - 1)] {
         match cell {
-            DisplayCell::Data(b) => {
+            DisplayCell::Data(b) | DisplayCell::Sent(b) => {
                 if in_idle {
                     out.push_str("[IDLE]");
                     in_idle = false;
@@ -151,7 +151,7 @@ pub fn format_monitor_binary(cells: &[DisplayCell], range: (usize, usize)) -> St
     let bytes: Vec<u8> = cells[range.0..=range.1.min(cells.len() - 1)]
         .iter()
         .filter_map(|cell| match cell {
-            DisplayCell::Data(b) => Some(*b),
+            DisplayCell::Data(b) | DisplayCell::Sent(b) => Some(*b),
             DisplayCell::IdleChar(_) => None,
         })
         .collect();
@@ -281,6 +281,18 @@ mod tests {
         c.insert(2, DisplayCell::IdleChar('1'));
         let s = format_monitor_binary(&c, (0, c.len() - 1));
         assert_eq!(s, "AB");
+    }
+
+    #[test]
+    fn format_monitor_mixed_treats_sent_as_data() {
+        // 送信バイトもコピー時は受信と同じ扱い (色は描画側でのみ区別)
+        let c = vec![
+            DisplayCell::Data(b'A'),
+            DisplayCell::Sent(b'B'),
+            DisplayCell::Data(0x0D),
+        ];
+        let s = format_monitor_mixed(&c, (0, 2));
+        assert_eq!(s, "AB$0D");
     }
 
     #[test]
